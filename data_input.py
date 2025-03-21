@@ -1,0 +1,163 @@
+import argparse
+import os
+import random
+import numpy as np
+import torch
+
+##Do we really need numpy, if we have tensors in torch?``
+
+
+class DataSetManager:
+    def __init__(self,args):
+        self.name = args.dataset
+        self.dir = os.path.join("data", self.name)
+        self.device = args.device
+        # THIS NEEDS TO STAY 6
+        self.max_arity = args.max_arity
+        # id zero means no entity. Entity ids start from 1.
+        self.ent2id = {"":0}
+        self.rel2id = {"":0}
+        # The unified data structure  for holding both types of complex facts - 
+        # hyper-relational and n-ary
+        #
+        # Each fact will be of the form {"PT":[r, e1,....en], "QP":[[qr1,qe1],[qr2,qe2]....[qrm, qem]]}
+        # Where n is the maximum arity of n-ary relations and m is the max number of qualifier pairs in the fact
+        # Now the dataset will consist of subsets "train", "valid" and "test"
+        self.data = {}
+        print("Loading the dataset {} ....".format(self.name))
+        self.data["train"] = self.read(os.path.join(self.dir, "train.txt"))
+        print("Read the dataset {} ....".format(self.data["train"]))
+        # Load the test data
+        self.data["test"] = self.read(os.path.join(self.dir, "test.txt"))
+        # Read the test files by arity, if they exist
+        # If they do, then test output will be displayed by arity
+        """ for i in range(2,self.max_arity+1):
+            test_arity = "test_{}".format(i)
+            file_path = os.path.join(self.dir, "test_{}.txt".format(i))
+            self.data[test_arity] = self.read_test(file_path) """
+
+        self.data["valid"] = self.read(os.path.join(self.dir, "valid.txt"))
+
+
+        #Convert graph data into a representation suitable for GNN/GCN propagation
+        
+        graph_representation = {}
+        graph_representation["edge_index"], graph_representation["edge_type"], graph_representation["qual_details"]  = self.convert_to_graph_representation_for_msg_passing(self.data["train"])
+        self.graph_representation = graph_representation
+
+    def convert_to_graph_representation_for_msg_passing(self,data):
+        primary_tuples=data["primary_tuples"]
+        qual_pairs = data["qual_pairs"]
+
+        #the len of both primary_tuples and qual_pairs should be equal
+        num_tuples = len(primary_tuples)
+        
+        np_edge_index, np_edge_type = np.zeros((2, num_tuples * 2), dtype='int32'), np.zeros((num_tuples * 2), dtype='int32')
+        
+        qualifier_rel = []
+        qualifier_ent = []
+        qualifier_edge = []
+
+       
+
+        # Add actual data
+        for i, pr_tuple in enumerate(primary_tuples):
+            print(f"In for loop i={i} pr_tuple={pr_tuple}")
+            np_edge_index[:, i] = [pr_tuple[0], pr_tuple[2]]
+            np_edge_type[i] = pr_tuple[1]
+
+           
+            qual_rel = np.array(qual_pairs[i][::2])
+            qual_ent = np.array(qual_pairs[i][1::2])
+            non_zero_rels = qual_rel[np.nonzero(qual_rel)]
+            non_zero_ents = qual_ent[np.nonzero(qual_ent)]
+            for j in range(non_zero_ents.shape[0]):
+                qualifier_rel.append(non_zero_rels[j])
+                qualifier_ent.append(non_zero_ents[j])
+                qualifier_edge.append(i)
+
+        np_qual_details = np.stack((qualifier_rel, qualifier_ent, qualifier_edge), axis=0)
+
+        edge_index = torch.tensor(np_edge_index, dtype=torch.long, device=self.device)
+        edge_type = torch.tensor(np_edge_type, dtype=torch.long, device=self.device)
+        qual_details = torch.tensor(np_qual_details, dtype=torch.long, device=self.device)
+
+        return edge_index, edge_type, qual_details
+
+        
+
+    def read(self, file_path):
+            if not os.path.exists(file_path):
+                print("*** {} not found. Skipping. ***".format(file_path))
+                return ()
+            with open(file_path, "r") as f:
+                lines = f.readlines()
+            #We need to create hyperegde indexes that can be used  in the message passing
+            #But unlike HyperGNN that handles only single relational graphs, we need to have a mechanism to 
+            #factor in the relation type of each hyperedge
+            #Then we need qual pairs also to be linked to the hyper edges
+            primary_tuples = [] #array of all the primary tuples
+            qual_pairs = []  #array of all corresponding qual pairs
+            #qual_pairs =
+            #qual_pair_indices = 
+            data = {}
+            # Shuffle the train set
+            np.random.shuffle(lines)
+            for i, line in enumerate(lines):
+                pr_tuple = line.partition("<<")[2].partition(">>")[0]
+                tuple_q_pairs =  line.partition(">>")[2]
+                print(f"Partitioned string {pr_tuple}")
+                primary_tuples.append(self.tuple2ids(tuple(pr_tuple.split(','))))
+                qual_pairs.append(self.tuple2ids(tuple(tuple_q_pairs.split(','))))
+            data = {"primary_tuples":primary_tuples, "qual_pairs":qual_pairs}
+            return data
+    
+    """ def read_test(self, file_path):
+        if not os.path.exists(file_path):
+            print("*** {} not found. Skipping. ***".format(file_path))
+            return ()
+        with open(file_path, "r") as f:
+            lines = f.readlines()
+        tuples = np.zeros((len(lines),  self.max_arity + 1))
+        for i, line in enumerate(lines):
+            splitted = line.strip().split("\t")[1:]
+            tuples[i] = self.tuple2ids(splitted)
+        return tuples """
+    
+    def tuple2ids(self, tuple_):
+        print(f"Tuple 2 Ids input {tuple_}")
+        output = np.zeros(self.max_arity + 1)
+        for ind,t in enumerate(tuple_):
+            print(f"enumerate {ind}<>{t}")
+            if ind == 0:
+                output[ind] = self.get_rel_id(t)
+            else:
+                output[ind] = self.get_ent_id(t)
+        
+        print(f"Tuple 2 Ids output {output}")
+
+        return output
+
+    def get_ent_id(self, ent):
+        if not ent in self.ent2id:
+            self.ent2id[ent] = len(self.ent2id)
+        return self.ent2id[ent]
+
+    def get_rel_id(self, rel):
+        if not rel in self.rel2id:
+            self.rel2id[rel] = len(self.rel2id)
+        return self.rel2id[rel]
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-model', type=str, default="HEHR")
+    parser.add_argument('-dataset', type=str, default="wd50k_new_format")
+    parser.add_argument('-max_arity', type=str, default=6)    
+    parser.add_argument('-emb_dim', type=int, default=200)
+    parser.add_argument('-batch_size', type=int, default=128)
+    parser.add_argument('-device', type=str, default="cpu")
+
+    args = parser.parse_args()
+    dataset = DataSetManager(args)
+    print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nGraph Repsn{len(dataset.ent2id)}")
