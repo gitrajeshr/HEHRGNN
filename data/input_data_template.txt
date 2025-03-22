@@ -1,0 +1,4 @@
+#The model can handle both KNowledge hypergraphs and hyper-relational graphs.
+#The datasets  are not combined but the model can handle both types of datasets
+
+<<P1, Q1,Q2...>>QR1, QV1;QR2, QV2.

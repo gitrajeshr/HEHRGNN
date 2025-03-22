@@ -1,4 +1,3 @@
-import argparse
 import os
 import random
 import numpy as np
@@ -7,13 +6,15 @@ import torch
 ##Do we really need numpy, if we have tensors in torch?``
 
 
-class DataSetManager:
+class InputDataManager():
     def __init__(self,args):
         self.name = args.dataset
         self.dir = os.path.join("data", self.name)
         self.device = args.device
         # THIS NEEDS TO STAY 6
         self.max_arity = args.max_arity
+        self.max_q_pairs = args.max_q_pairs
+
         # id zero means no entity. Entity ids start from 1.
         self.ent2id = {"":0}
         self.rel2id = {"":0}
@@ -26,7 +27,7 @@ class DataSetManager:
         self.data = {}
         print("Loading the dataset {} ....".format(self.name))
         self.data["train"] = self.read(os.path.join(self.dir, "train.txt"))
-        print("Read the dataset {} ....".format(self.data["train"]))
+        #print("Read the dataset {} ....".format(self.data["train"]))
         # Load the test data
         self.data["test"] = self.read(os.path.join(self.dir, "test.txt"))
         # Read the test files by arity, if they exist
@@ -44,6 +45,10 @@ class DataSetManager:
         graph_representation = {}
         graph_representation["edge_index"], graph_representation["edge_type"], graph_representation["qual_details"]  = self.convert_to_graph_representation_for_msg_passing(self.data["train"])
         self.graph_representation = graph_representation
+        self.num_entities = len(self.ent2id)
+        self.num_relations = len(self.rel2id)
+        self.num_tuples = len(self.data["train"]["primary_tuples"])
+        print(f"Num tuples = {self.num_tuples} Enities2id= {self.ent2id} NUm Entities={self.num_entities} Rel2id={self.rel2id} num_relations={self.num_relations}")
 
     def convert_to_graph_representation_for_msg_passing(self,data):
         primary_tuples=data["primary_tuples"]
@@ -51,8 +56,9 @@ class DataSetManager:
 
         #the len of both primary_tuples and qual_pairs should be equal
         num_tuples = len(primary_tuples)
-        
-        np_edge_index, np_edge_type = np.zeros((2, num_tuples * 2), dtype='int32'), np.zeros((num_tuples * 2), dtype='int32')
+        # We need to add inverse tuples for each tuple?
+        #np_edge_index, np_edge_type = np.zeros((2, num_tuples * 2), dtype='int32'), np.zeros((num_tuples * 2), dtype='int32')
+        np_edge_index, np_edge_type = np.zeros((2, num_tuples), dtype='int32'), np.zeros((num_tuples), dtype='int32')
         
         qualifier_rel = []
         qualifier_ent = []
@@ -63,8 +69,8 @@ class DataSetManager:
         # Add actual data
         for i, pr_tuple in enumerate(primary_tuples):
             print(f"In for loop i={i} pr_tuple={pr_tuple}")
-            np_edge_index[:, i] = [pr_tuple[0], pr_tuple[2]]
-            np_edge_type[i] = pr_tuple[1]
+            np_edge_index[:, i] = [pr_tuple[1], pr_tuple[2]]
+            np_edge_type[i] = pr_tuple[0]
 
            
             qual_rel = np.array(qual_pairs[i][::2])
@@ -81,7 +87,7 @@ class DataSetManager:
         edge_index = torch.tensor(np_edge_index, dtype=torch.long, device=self.device)
         edge_type = torch.tensor(np_edge_type, dtype=torch.long, device=self.device)
         qual_details = torch.tensor(np_qual_details, dtype=torch.long, device=self.device)
-
+        print(f"Edge_index ={edge_index.shape} Edge_Type={edge_type}")
         return edge_index, edge_type, qual_details
 
         
@@ -103,12 +109,11 @@ class DataSetManager:
             data = {}
             # Shuffle the train set
             np.random.shuffle(lines)
-            for i, line in enumerate(lines):
-                pr_tuple = line.partition("<<")[2].partition(">>")[0]
-                tuple_q_pairs =  line.partition(">>")[2]
-                print(f"Partitioned string {pr_tuple}")
-                primary_tuples.append(self.tuple2ids(tuple(pr_tuple.split(','))))
-                qual_pairs.append(self.tuple2ids(tuple(tuple_q_pairs.split(','))))
+            for i, line in enumerate(lines):                
+                pr_tuple_id, q_pairs_id = self.tuple2ids(i,line)
+                primary_tuples.append(pr_tuple_id)
+                qual_pairs.append(q_pairs_id)
+            
             data = {"primary_tuples":primary_tuples, "qual_pairs":qual_pairs}
             return data
     
@@ -124,19 +129,34 @@ class DataSetManager:
             tuples[i] = self.tuple2ids(splitted)
         return tuples """
     
-    def tuple2ids(self, tuple_):
-        print(f"Tuple 2 Ids input {tuple_}")
-        output = np.zeros(self.max_arity + 1)
-        for ind,t in enumerate(tuple_):
-            print(f"enumerate {ind}<>{t}")
-            if ind == 0:
-                output[ind] = self.get_rel_id(t)
-            else:
-                output[ind] = self.get_ent_id(t)
+    def tuple2ids(self, line_num,line):
+        #print(f"Line num={line_num} for Tuple 2 Ids {line}")
+        #Validate the input line -- 1 reln and max_arity entities for primary tuple
+        #-- equal number of relns and entities for q pairs, max pairs to be max_q_pairs
+        pr_tuple = tuple((line.partition("<<")[2].partition(">>")[0]).split(','))
+        q_pairs =  tuple((line.partition(">>")[2]).split(','))
+        #print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
         
-        print(f"Tuple 2 Ids output {output}")
+        pr_tuple_id = np.zeros(self.max_arity + 1)
+        for ind,t in enumerate(pr_tuple):
+            #print(f"enumerate {ind}<>{t}")
+            if ind == 0:
+                pr_tuple_id[ind] = self.get_rel_id(t)
+            else:
+                pr_tuple_id[ind] = self.get_ent_id(t)
+        
+        q_pairs_id = np.zeros(self.max_q_pairs * 2)
+        for ind,t in enumerate(q_pairs):
+            #print(f"enumerate {ind}<>{t}")
+            if ind < self.max_q_pairs * 2:
+                if ind % 2 == 0:
+                    q_pairs_id[ind] = self.get_rel_id(t)
+                else:
+                    q_pairs_id[ind] = self.get_ent_id(t)
+        
+        #print(f"Tuple 2 Ids output pr_tuple_id {pr_tuple_id} \n qual_pairs_id = {q_pairs_id}")
 
-        return output
+        return pr_tuple_id,q_pairs_id
 
     def get_ent_id(self, ent):
         if not ent in self.ent2id:
@@ -149,15 +169,3 @@ class DataSetManager:
         return self.rel2id[rel]
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-model', type=str, default="HEHR")
-    parser.add_argument('-dataset', type=str, default="wd50k_new_format")
-    parser.add_argument('-max_arity', type=str, default=6)    
-    parser.add_argument('-emb_dim', type=int, default=200)
-    parser.add_argument('-batch_size', type=int, default=128)
-    parser.add_argument('-device', type=str, default="cpu")
-
-    args = parser.parse_args()
-    dataset = DataSetManager(args)
-    print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nGraph Repsn{len(dataset.ent2id)}")
