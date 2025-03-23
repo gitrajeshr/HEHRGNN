@@ -13,12 +13,12 @@ class GNNLayer(MessagePassing):
         #self.bias = Parameter(torch.empty(out_channels))
         self.set_weights(in_channels, out_channels)
         print(f"In channel ={in_channels} out_channels={out_channels}")
-        self.device = "cpu"
 
     def set_weights(self,in_channels, out_channels):
         self.lin.reset_parameters()
         #self.bias.data.zero_()
-        self.W_msg = get_param((in_channels, out_channels))  
+        self.w_msg = get_param((in_channels, out_channels))  
+        self.w_rel = get_param((in_channels, out_channels))  
     
     def forward(self, ent_embed,rel_embed, edge_index,edge_type):
         # x has shape [N, in_channels]
@@ -35,7 +35,9 @@ class GNNLayer(MessagePassing):
         edge_embed = rel_embed[edge_type]
         #propagate message using the MessagePassing class features
         out_ent_embed = self.propagate(edge_index, x=ent_embed,edge_embed=edge_embed)
-        out_rel_embed = rel_embed # what transformation is to be applied??
+        #In case of hyper  edges, the relation embeddings have to be updated by propagation from the 
+        # neighboring(or member nodes). Need to do it here or Some where else???
+        out_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
         return out_ent_embed, out_rel_embed
     
     def edge_msg_transform(self,obj_embed, edge_embed, weight):
@@ -56,6 +58,6 @@ class GNNLayer(MessagePassing):
         #weight = getattr(self, 'w_{}'.format(mode))
         #Update the rel_embed using the qualifier pairs and then prepare the edge msg
         #using the x_j and the rel_embed
-        weight = self.W_msg
+        weight = self.w_msg
         xj_msg = self.edge_msg_transform(x_j, edge_embed, weight) #Phi_r in StaRE equation
         return xj_msg

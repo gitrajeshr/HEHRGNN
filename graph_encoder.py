@@ -1,5 +1,7 @@
 import torch
 from utils import get_param
+from torch.nn.init import xavier_normal_
+
 
 from gnn_layer import GNNLayer
 
@@ -8,23 +10,33 @@ from gnn_layer import GNNLayer
 # We can have multiple gnn_layers and configure suitable number of layers, embedding dimensions etc.
 
 class GraphEncoder(torch.nn.Module):
-    def __init__(self, dataset):
+    def __init__(self, dataset,config):
         super().__init__()
+
+        self.device = config.device
+
         self.num_ent = dataset.num_entities
         self.num_rel = dataset.num_relations
         self.emb_dim1 = 100
         self.emb_dim2 = 128
         self.emb_dim3 = 200
-        self.ent_embed = get_param((self.num_ent, self.emb_dim1))
-        self.device = "cpu"
+        self.register_buffer('ent_embed', torch.randn(self.num_ent, self.emb_dim1))
+        #self.ent_embed = torch.randn(self.num_ent, self.emb_dim1)
+        xavier_normal_(self.ent_embed)
 
         """ phases = 2 * np.pi * torch.rand(self.num_rel, self.emb_dim1 // 2)
         self.rel_embed = nn.Parameter(torch.cat([
                 torch.cat([torch.cos(phases), torch.sin(phases)], dim=-1),
                 torch.cat([torch.cos(phases), -torch.sin(phases)], dim=-1)
             ], dim=0)) """
-        self.rel_embed = get_param((self.num_rel, self.emb_dim1)) # * 2 is for inverse relns
+        self.register_buffer('rel_embed', torch.randn(self.num_ent, self.emb_dim1))
+        #self.rel_embed = torch.randn(self.num_rel, self.emb_dim1) # * 2 is for inverse relns
+        xavier_normal_(self.rel_embed)
+
+        #self.rel_embed = torch.randn(self.num_rel, self.emb_dim1) # * 2 is for inverse relns
+        
         #self.init_embed.data[0] = 0  # padding  ---- Why is this required??
+        
         # Why do we need a separate class for encoder? Can it be not part of the GNNLayer itself?
         self.gnn_layer1 = GNNLayer(self.emb_dim1, self.emb_dim2)
         #Instead of having multiple layers defined here, can we have a single layer
