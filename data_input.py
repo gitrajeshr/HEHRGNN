@@ -56,10 +56,13 @@ class InputDataManager():
 
         #the len of both primary_tuples and qual_pairs should be equal
         num_tuples = len(primary_tuples)
-        # We need to add inverse tuples for each tuple?
-        #np_edge_index, np_edge_type = np.zeros((2, num_tuples * 2), dtype='int32'), np.zeros((num_tuples * 2), dtype='int32')
-        np_edge_index, np_edge_type = np.zeros((2, num_tuples), dtype='int32'), np.zeros((num_tuples), dtype='int32')
-        
+        # We need to add inverse tuples for each tuple? 
+        # How do we define inverse relation in case of hyper-edges?
+        #
+        #np_hyperedge_index, np_hyperedge_type = np.zeros((2, num_tuples * 2), dtype='int32'), np.zeros((num_tuples * 2), dtype='int32')
+        #np_hyperedge_index, np_hyperedge_type = np.zeros((2, num_tuples), dtype='int32'), np.zeros((num_tuples), dtype='int32')
+        #np_hyperedge_index, np_hyperedge_type = np.empty((2, 0)), np.empty((0))
+        np_hyperedge_index, np_hyperedge_type = [[],[]], []
         qualifier_rel = []
         qualifier_ent = []
         qualifier_edge = []
@@ -69,8 +72,13 @@ class InputDataManager():
         # Add actual data
         for i, pr_tuple in enumerate(primary_tuples):
             print(f"In for loop i={i} pr_tuple={pr_tuple}")
-            np_edge_index[:, i] = [pr_tuple[1], pr_tuple[2]]
-            np_edge_type[i] = pr_tuple[0]
+            np_hyperedge_type.append(pr_tuple[0])
+            #Need to loop only till the entity is 0 or if we know th arity value, use that
+            for j,ent in enumerate(pr_tuple):
+                if ent == 0:
+                    break
+                np_hyperedge_index[0].append(ent)
+                np_hyperedge_index[1].append(i)
 
            
             qual_rel = np.array(qual_pairs[i][::2])
@@ -84,11 +92,11 @@ class InputDataManager():
 
         np_qual_details = np.stack((qualifier_rel, qualifier_ent, qualifier_edge), axis=0)
 
-        edge_index = torch.tensor(np_edge_index, dtype=torch.long, device=self.device)
-        edge_type = torch.tensor(np_edge_type, dtype=torch.long, device=self.device)
+        hyperedge_index = torch.tensor(np.array(np_hyperedge_index), dtype=torch.long, device=self.device)
+        hyperedge_type = torch.tensor(np.array(np_hyperedge_type), dtype=torch.long, device=self.device)
         qual_details = torch.tensor(np_qual_details, dtype=torch.long, device=self.device)
-        print(f"Edge_index ={edge_index.shape} Edge_Type={edge_type}")
-        return edge_index, edge_type, qual_details
+        print(f"Edge_index shape={hyperedge_index.shape} Edge_index ={hyperedge_index} Edge_Type={hyperedge_type}")
+        return hyperedge_index, hyperedge_type, qual_details
 
         
 

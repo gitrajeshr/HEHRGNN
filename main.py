@@ -29,3 +29,4 @@ if __name__ == "__main__":
     #Add the loss functions
     #What is the default optimizer used by nn.Modules? If we don't specify any optimizer
     #for GraphEncoder, does it use a default one? Even for GNNlayer?
+    #Where do we put the optimizer, it should be 
