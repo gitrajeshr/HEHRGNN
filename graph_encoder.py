@@ -29,7 +29,7 @@ class GraphEncoder(torch.nn.Module):
                 torch.cat([torch.cos(phases), torch.sin(phases)], dim=-1),
                 torch.cat([torch.cos(phases), -torch.sin(phases)], dim=-1)
             ], dim=0)) """
-        self.register_buffer('rel_embed', torch.randn(self.num_ent, self.emb_dim1))
+        self.register_buffer('rel_embed', torch.randn(self.num_rel, self.emb_dim1))
         #self.rel_embed = torch.randn(self.num_rel, self.emb_dim1) # * 2 is for inverse relns
         xavier_normal_(self.rel_embed)
 
@@ -45,10 +45,10 @@ class GraphEncoder(torch.nn.Module):
 
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
-    def forward(self,edge_index, edge_type):
-        self.ent_embed, self.rel_embed = self.gnn_layer1(self.ent_embed,self.rel_embed,edge_index, edge_type)
+    def forward(self,graph_data):
+        self.ent_embed, self.rel_embed = self.gnn_layer1(self.ent_embed,self.rel_embed,graph_data)
         #drop reqd?
-        self.ent_embed, self.rel_embed = self.gnn_layer2(self.ent_embed,self.rel_embed,edge_index, edge_type)
+        self.ent_embed, self.rel_embed = self.gnn_layer2(self.ent_embed,self.rel_embed,graph_data)
         #drop reqd?
         return self.ent_embed, self.rel_embed
 

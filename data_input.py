@@ -74,7 +74,7 @@ class InputDataManager():
             print(f"In for loop i={i} pr_tuple={pr_tuple}")
             np_hyperedge_type.append(pr_tuple[0])
             #Need to loop only till the entity is 0 or if we know th arity value, use that
-            for j,ent in enumerate(pr_tuple):
+            for j,ent in enumerate(pr_tuple[1:]):
                 if ent == 0:
                     break
                 np_hyperedge_index[0].append(ent)

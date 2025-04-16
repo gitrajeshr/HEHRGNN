@@ -21,7 +21,7 @@ if __name__ == "__main__":
     print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nGraph Repsn{len(dataset.ent2id)}")
 
     graph_encoder = GraphEncoder(dataset,args).to(args.device)
-    graph_encoder(dataset.graph_representation["edge_index"], dataset.graph_representation["edge_type"])
+    graph_encoder(dataset.graph_representation)
 
     #Now we have the embeddings for entities as well as relations. How do we evaluate?
     #The encoder decoder should be part of the GraphEncoder in order to optimize
