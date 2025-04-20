@@ -38,10 +38,10 @@ class GraphEncoder(torch.nn.Module):
         #self.init_embed.data[0] = 0  # padding  ---- Why is this required??
         
         # Why do we need a separate class for encoder? Can it be not part of the GNNLayer itself?
-        self.gnn_layer1 = GNNLayer(self.emb_dim1, self.emb_dim2)
+        self.gnn_layer1 = GNNLayer(self.emb_dim1, self.emb_dim2,self.device)
         #Instead of having multiple layers defined here, can we have a single layer
         #with multiple propagations? But then we'll have only a single set of weights? Is that ok?
-        self.gnn_layer2 = GNNLayer(self.emb_dim2, self.emb_dim3)
+        self.gnn_layer2 = GNNLayer(self.emb_dim2, self.emb_dim3,self.device)
 
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
