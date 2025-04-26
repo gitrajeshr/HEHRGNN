@@ -13,9 +13,9 @@ from torch import Tensor
 class GNNLayer(MessagePassing):
     def __init__(self, in_channels, out_channels,device):
         super().__init__(aggr='add', flow='source_to_target',node_dim=0)  #node_dim=0??
-        self.lin = Linear(in_channels, in_channels, bias=False)
+        self.lin = Linear(in_channels, out_channels, bias=False)
         #self.bias = Parameter(torch.empty(out_channels))
-        self.set_weights(in_channels, out_channels)
+        self.set_weights(out_channels, out_channels)
         self.device= device
         self.config = {}
         self.config['QUAL_TRANSFORM']  = 'mult' #'sub', 'corr','rotate', '
@@ -45,6 +45,15 @@ class GNNLayer(MessagePassing):
         qual_details = graph_data["qual_details"]
 
         num_nodes = ent_embed.size(0)
+        # Step 2: Linearly transform node feature matrix.
+        print(f"Before lin transform  ent_embed={ent_embed.shape}")
+        
+        ent_embed = self.lin(ent_embed) #??? why its is reqd??
+        rel_embed = self.lin(rel_embed)
+        print(f"  ")
+        print(f"After lin transform ent_embed={ent_embed.shape} rel_embed={rel_embed.shape}")
+
+
 
         num_edges = 0
         if hyperedge_index.numel() > 0:
@@ -77,11 +86,7 @@ class GNNLayer(MessagePassing):
         # Step 1: Add self-loops to the adjacency matrix.
         #edge_index, _ = add_self_loops(edge_index, num_nodes=ent_embed.size(0))
 
-        # Step 2: Linearly transform node feature matrix.
-        print(f"Before lin transform  ent_embed={ent_embed.shape} B={B}")
-        ent_embed = self.lin(ent_embed) #??? why its is reqd??
-        print(f"  ")
-        print(f"After lin transform num_nodes ={num_nodes} num_edges={num_edges} hyperedge_index={hyperedge_index.shape} Edge type shape = {edge_type.shape} values={edge_type} \n ent_embed={ent_embed.shape} rel_embed={rel_embed.shape}\n rel_embed={rel_embed}")
+        
         edge_embed = torch.zeros_like(rel_embed[edge_type])
         ent_embed = torch.ones_like(ent_embed)
         #propagate message using the MessagePassing class features
@@ -91,23 +96,36 @@ class GNNLayer(MessagePassing):
        
        ##!!The arguments to propagate should be such that, if size=(N,M) and , if x_i is accessed inside message
        #then x has to be of dimension (M,..) and if x_j is accessed then x has to be of dim (N,..)
-        msg_dirn = 0
-        out_edge_embed = self.propagate(hyperedge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_dirn=msg_dirn, norm=B, qual_details =None, weight=self.w_nodes)
 
-        print(f"AFter 1st propagation shape={out_edge_embed.shape} hyperedge_index.flip([0]) shape")
-        msg_dirn = 1
-        #qual_details = torch.full((num_nodes, 3), 3, device=self.device)
-        #???Prepare qual_details as indexed by egdesi.e. of dimension(num_edges, ..)
-        out_ent_embed = self.propagate(hyperedge_index.flip([0]),size=(num_edges,num_nodes), x=(out_edge_embed,ent_embed), msg_dirn=msg_dirn, qual_details = qual_details,norm=D,weight = self.w_edges)
+        norm_Q = B
+        #1 - quals to hyper edge
+        qual_edge_index = qual_details[[1,2]]
+        print(f"QQQQQQ>>>>qual_details = {qual_details.shape} qual edge index = {qual_edge_index.shape}")
+        qual_edge_embed = rel_embed[qual_details[0]]
+        msg_type = 1
+        updated_edge_embed = self.propagate(qual_edge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, qual_edge_embed=qual_edge_embed, norm=norm_Q, weight=self.w_quals)
+        #2 - nodes to hyperedge
+        msg_type = 2
+        updated_edge_embed = self.propagate(hyperedge_index,size=(num_nodes,num_edges),x=(ent_embed,updated_edge_embed),msg_type=msg_type, norm=B, qual_edge_embed =None, weight=self.w_nodes)
+
+        print(f"AFter 2nd propagation shape={updated_edge_embed.shape} hyperedge_index.flip([0]) shape")
+        #3 - hyperedge to nodes
+        msg_type = 3     
+        updated_ent_embed = self.propagate(hyperedge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type, qual_edge_embed = None,norm=D,weight = self.w_edges)
         
-        print(f"AFter 2nd propagation shape={out_ent_embed.shape}")
+        print(f"AFter 3rd propagation shape={updated_ent_embed.shape}")
+        #4  hyper edge to quals
+        msg_type = 4
+        #the weight used for this propgn has to be inverse of W_quals
+        updated_ent_embed = self.propagate(qual_edge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type, qual_edge_embed=qual_edge_embed,norm=D,weight = self.w_quals)
+
 
         #In case of hyper  edges, the relation embeddings have to be updated by propagation from the 
         # neighboring(or member nodes). Need to do it here or Some where else???
-        out_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
-        print(f"Returning from GNN layer  ent_embed shape={out_ent_embed.shape}")
+        updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
+        print(f"Returning from GNN layer  ent_embed shape={updated_ent_embed.shape}")
 
-        return out_ent_embed, out_rel_embed
+        return updated_ent_embed, updated_rel_embed
     
     def update_hyperedge_with_nodes(self,edge_embed,obj_embed, weight):
             print(f"obj_embed={obj_embed.shape} rel_embed={edge_embed.shape}")
@@ -172,20 +190,8 @@ class GNNLayer(MessagePassing):
         
         return edge_embed_with_quals
     
-    def qual_transform(self, qualifier_ent, qualifier_rel):
-        if self.config['QUAL_TRANSFORM'] == 'corr':
-            trans_embed = ccorr(qualifier_ent, qualifier_rel)
-        elif self.config['QUAL_TRANSFORM'] == 'sub':
-            trans_embed = qualifier_ent - qualifier_rel
-        elif self.config['QUAL_TRANSFORM'] == 'mult':
-            trans_embed = qualifier_ent * qualifier_rel
-        elif self.config['QUAL_TRANSFORM'] == 'rotate':
-            trans_embed = rotate(qualifier_ent, qualifier_rel)
-        else:
-            raise NotImplementedError
-
-        return trans_embed 
-    def update_hyperedge_with_quals(self,rel_embed,ent_embed,edge_type,edge_qual_details):
+    
+    def update_hyperedge_with_quals(self,ent_embed,rel_embed,edge_type,edge_qual_details):
             print(f"edge_qual_details={edge_qual_details} rel_embed={edge_embed.shape}")
             
             qualifier_rel = edge_qual_details[0]
@@ -209,8 +215,32 @@ class GNNLayer(MessagePassing):
             edge_embed_with_quals = self.qualifier_aggregate(edge_embed, qualifier_embed, qualifier_index)
 
             return edge_embed_with_quals
-    
-    def message(self, edge_index,size,x,x_j,x_i,msg_dirn,norm_i, qual_details, weight=None):
+    def combine_qual_node_with_qual_edge(self,qual_node_embed,qual_edge_embed):
+        if self.config['QUAL_TRANSFORM'] == 'corr':
+            trans_embed = ccorr(qual_node_embed, qual_edge_embed)
+        elif self.config['QUAL_TRANSFORM'] == 'sub':
+            trans_embed = qual_node_embed - qual_edge_embed
+        elif self.config['QUAL_TRANSFORM'] == 'mult':
+            trans_embed = qual_node_embed * qual_edge_embed
+        elif self.config['QUAL_TRANSFORM'] == 'rotate':
+            trans_embed = rotate(qual_node_embed, qual_edge_embed)
+        else:
+            raise NotImplementedError
+        return trans_embed 
+    def combine_hyperedge_with_qual_edge(self,hyper_edge_embed,qual_edge_embed):
+        if self.config['QUAL_TRANSFORM'] == 'corr':
+            trans_embed = ccorr(hyper_edge_embed, qual_edge_embed)
+        elif self.config['QUAL_TRANSFORM'] == 'sub':
+            trans_embed = hyper_edge_embed - qual_edge_embed
+        elif self.config['QUAL_TRANSFORM'] == 'mult':
+            trans_embed = hyper_edge_embed * qual_edge_embed
+        elif self.config['QUAL_TRANSFORM'] == 'rotate':
+            trans_embed = rotate(hyper_edge_embed, qual_edge_embed)
+        else:
+            raise NotImplementedError
+        return trans_embed 
+
+    def message(self, edge_index,size,x,x_j,x_i,msg_type,norm_i,qual_edge_embed=None, weight=None):
         #norm_i=[]
         print(f"Edge_index= norm_i={norm_i} x shape={x[0].shape, x[1].shape} x_j={x_j.shape} x_i={x_i.shape} x_i={x_i} x_j ={x_j}")
         #Hyper edges with qualifiers - Hyperedge Hyperrelational graphs
@@ -221,30 +251,42 @@ class GNNLayer(MessagePassing):
         #weight = getattr(self, 'w_{}'.format(mode))
         #Update the rel_embed using the qualifier pairs and then prepare the edge msg
         #using the x_j and the rel_embed
-        #?? Or should we do combining quals with edges before calling propagate? 
-        if msg_dirn==0: # from nodes to edge    
-            #do we need to combine quals with edges before propagation from nodes?
-            edge_embed_with_quals = self.update_hyperedge_with_quals(x_j, ent_embed, rel_embed, qual_details) #(edge_embed, quals)
-            msg = self.update_hyperedge_with_nodes(x_j,edge_embed_with_quals,weight) #(node_embed, edge_embed)
-        else: #from edges to nodes
-            msg = self.update_nodes_with_edges(x_j,weight) #(edge_embed, quals)
-            #msg = self.edge_msg_transform(x_j, edge_embed) #Phi_r in StaRE equation
-
-        #x_j , is the source node which sends the message. WHich here is the source node or 1st node in the edge representation
-        #We need to send it to the hyperedge , where it will be aggregated. each hyperedge gets messages
-        # from all the nodes which are members of it to the member nodes.
-        #x_i is the target node which receives the message(here the hyperedges )
-        #in the second call, propagation happens in the other direction, where we send 
-        # the hyperedge feature to the member nodes. Each member node gets message from 
-        # all the hyperedges of which it is a member
-
+        #x_j , is the source node which sends the message
+        #x_i is the dst node that receives the msg 
+        #if msg_type=2
+            #.the source node is a node in the hyper edge 
+            # dst node is the hyperedge itself
+            #We need to send it to the hyperedge , where it will be aggregated. each hyperedge gets messages
+            # from all the nodes which are members of it to the member nodes.
+        #if msg_type=3
+            #.the source node is hyperedge itself
+            # dst node is the member node  in the hyper edge 
+            #propagation happens in the other direction, where we send 
+            # the hyperedge features to the member nodes. Each member node gets message from 
+            # all the hyperedges of which it is a member
+        
+     
          #So where do we use the relation embedding?
          #when a hyperedge receives messsages from its member nodes and aggregates, may be 
          #we can include the relation embedding in the aggregation with some weightage/attention
+        if msg_type==1:
+            print(f"Qual to hyperedge Msg type={msg_type}")
+            msg = self.combine_qual_node_with_qual_edge(x_j,qual_edge_embed) 
+        elif msg_type==2: # from nodes to edge    
+            #x[0] is ent_embed, x[1] is edge embed
+            msg = x_j 
+        elif msg_type==3: #from hyperedges to nodes
+            print(f"Hyperedge to nodes Msg type={msg_type}")
+            msg = x_j
+        elif msg_type==4: #from hyperedges to qual nodes
+            msg = self.combine_hyperedge_with_qual_edge(x_j,qual_edge_embed)
+      
+       
         print(f"in message x_j shape={x_j.shape}")
         #out = norm_i.view(-1, 1,1) * x_j.view(-1, H, F)
 
-        out = torch.einsum('ij,jk->ik', msg, weight)
+        #out = torch.einsum('ij,jk->ik', msg, weight)
+        out = msg
         #out = x_j
         #out is the matrix containing all the message rows corresponding to x_j for all the edges
         #in the edge_index. Now these out messages will be aggregated for all the x_i (here the hyperedges)
@@ -254,6 +296,3 @@ class GNNLayer(MessagePassing):
         # Hence multiplying out with norm_i normailzes out by the degree of of edge/node respectively
         #in the first and second call
         return out if norm_i is None else out * norm_i.view(-1, 1)
-
-
-        return out
