@@ -45,6 +45,7 @@ class GNNLayer(MessagePassing):
         qual_details = graph_data["qual_details"]
 
         num_nodes = ent_embed.size(0)
+        num_rels = rel_embed.size(0)
         # Step 2: Linearly transform node feature matrix.
         print(f"Before lin transform  ent_embed={ent_embed.shape}")
         
@@ -52,7 +53,10 @@ class GNNLayer(MessagePassing):
         rel_embed = self.lin(rel_embed)
         print(f"  ")
         print(f"After lin transform ent_embed={ent_embed.shape} rel_embed={rel_embed.shape}")
-
+        edge_embed = rel_embed[edge_type]
+        #edge_embed = torch.zeros_like(rel_embed[edge_type])
+        #ent_embed = torch.ones_like(ent_embed)
+        
 
 
         num_edges = 0
@@ -62,33 +66,52 @@ class GNNLayer(MessagePassing):
         #same as that of x
         if hyperedge_weight is None:
             hyperedge_weight = ent_embed.new_ones(num_edges)
+        #the edge_index details for the qual edges i.e src is qual node and dst is the hyperedge
+        qual_edge_index = qual_details[[1,2]] 
 
-        
         #Below scatter stmt computes degrees of nodes by scattering the edge weight into
         # an output tensor by using the node members of hyperedges as indices for the output
         #.eg, if nodes 1,2,3 are members of hyperedge 1, the edge weight of edge 1 is transmitted
         # to the three indices 1,2,3 in the output. So effectively each index in the output
         # gets contributions from all the edges of which it is a part
-        #  D -> the node degrees
+        
+        #A -> qual_degree of an edge
+        A = scatter(ent_embed.new_ones(qual_edge_index.size(1)), qual_edge_index[1],
+                    dim=0, dim_size=num_edges, reduce='sum')
+        A = 1.0/A
+        A[A == float("inf")] = 0
+        norm_qual_to_edge = A
 
-        D = scatter(hyperedge_weight[hyperedge_index[1]], hyperedge_index[0],
-                    dim=0, dim_size=num_nodes, reduce='sum')
-        D = 1.0 / D
-        D[D == float("inf")] = 0
-        #Below scatter stmt computes the degree of edges by scattering 1's to the indices
-        # pointed by the second row of hyper_edge_index i.e. edge index repeated as many times as the number of nodes
         #  B -> the edge degrees
         B = scatter(ent_embed.new_ones(hyperedge_index.size(1)), hyperedge_index[1],
                     dim=0, dim_size=num_edges, reduce='sum')
         B = 1.0 / B
         B[B == float("inf")] = 0
+        norm_node_to_edge = B #edge_degree
+       
+        #  C -> primary node degrees
 
+        C = scatter(hyperedge_weight[hyperedge_index[1]], hyperedge_index[0],
+                    dim=0, dim_size=num_nodes, reduce='sum')
+        C = 1.0 / C
+        C[C == float("inf")] = 0
+        norm_edge_to_node = C  #node _degree
+        #Below scatter stmt computes the degree of edges by scattering 1's to the indices
+        # pointed by the second row of hyper_edge_index i.e. edge index repeated as many times as the number of nodes
+       
+        print(f"Qual edge index ={qual_edge_index.shape} {qual_edge_index}")
+       
+        # D -> qual nodes degree
+        D = scatter(ent_embed.new_ones(qual_edge_index.size(1)), qual_edge_index[0],
+                    dim=0, dim_size=num_nodes, reduce='sum')
+        D = 1.0/D
+        D[D == float("inf")] = 0
+        norm_edge_to_qual = D
         # Step 1: Add self-loops to the adjacency matrix.
         #edge_index, _ = add_self_loops(edge_index, num_nodes=ent_embed.size(0))
 
         
-        edge_embed = torch.zeros_like(rel_embed[edge_type])
-        ent_embed = torch.ones_like(ent_embed)
+        
         #propagate message using the MessagePassing class features
         #for hyperedges, the propagation using MessagePassing class has to be done in two steps
         #first propagate messages from the member nodes to the hyperedges and update the edge emebddings
@@ -97,34 +120,39 @@ class GNNLayer(MessagePassing):
        ##!!The arguments to propagate should be such that, if size=(N,M) and , if x_i is accessed inside message
        #then x has to be of dimension (M,..) and if x_j is accessed then x has to be of dim (N,..)
 
-        norm_Q = B
         #1 - quals to hyper edge
-        qual_edge_index = qual_details[[1,2]]
+
         print(f"QQQQQQ>>>>qual_details = {qual_details.shape} qual edge index = {qual_edge_index.shape}")
         qual_edge_embed = rel_embed[qual_details[0]]
+        print(f"010101 Ent embed = {ent_embed}")
         msg_type = 1
-        updated_edge_embed = self.propagate(qual_edge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, qual_edge_embed=qual_edge_embed, norm=norm_Q, weight=self.w_quals)
+        propagated_edge_msg1 = self.propagate(qual_edge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_qual_to_edge,qual_edge_embed=qual_edge_embed,  weight=self.w_quals)
         #2 - nodes to hyperedge
+        print(f"121212 Ent embed = {ent_embed}")
         msg_type = 2
-        updated_edge_embed = self.propagate(hyperedge_index,size=(num_nodes,num_edges),x=(ent_embed,updated_edge_embed),msg_type=msg_type, norm=B, qual_edge_embed =None, weight=self.w_nodes)
-
+        propagated_edge_msg2 = self.propagate(hyperedge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_node_to_edge, qual_edge_embed =None, weight=self.w_nodes)
+        
+        updated_edge_embed = edge_embed* (1/3) + propagated_edge_msg1* (1/3) + propagated_edge_msg2* (1/3)
+        
         print(f"AFter 2nd propagation shape={updated_edge_embed.shape} hyperedge_index.flip([0]) shape")
         #3 - hyperedge to nodes
         msg_type = 3     
-        updated_ent_embed = self.propagate(hyperedge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type, qual_edge_embed = None,norm=D,weight = self.w_edges)
-        
-        print(f"AFter 3rd propagation shape={updated_ent_embed.shape}")
+        propagated_ent_msg1 = self.propagate(hyperedge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type,norm=norm_edge_to_node,qual_edge_embed = None,weight = self.w_edges)
         #4  hyper edge to quals
         msg_type = 4
         #the weight used for this propgn has to be inverse of W_quals
-        updated_ent_embed = self.propagate(qual_edge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type, qual_edge_embed=qual_edge_embed,norm=D,weight = self.w_quals)
-
+        propagated_ent_msg2 = self.propagate(qual_edge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type,norm=norm_edge_to_qual,qual_edge_embed=qual_edge_embed,weight = self.w_quals)
+        
+        updated_ent_embed = ent_embed * (1/3) + propagated_ent_msg1 * (1/3)+ propagated_ent_msg2 * (1/3)
 
         #In case of hyper  edges, the relation embeddings have to be updated by propagation from the 
         # neighboring(or member nodes). Need to do it here or Some where else???
         updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
-        print(f"Returning from GNN layer  ent_embed shape={updated_ent_embed.shape}")
-
+        updated_rel_embed = scatter(updated_edge_embed, edge_type,
+                    dim=0, dim_size=num_rels, reduce='mean')
+        print(f"Returning from GNN layer  ent_embed shape={updated_ent_embed.shape} Ent embed = {updated_ent_embed}")
+        #The node updated node embeddings are a sum of self, aggregated neighbours -both primary edge and qual edge
+        #do we need to divide the value by 3 or so in order to normailize?
         return updated_ent_embed, updated_rel_embed
     
     def update_hyperedge_with_nodes(self,edge_embed,obj_embed, weight):
@@ -242,7 +270,7 @@ class GNNLayer(MessagePassing):
 
     def message(self, edge_index,size,x,x_j,x_i,msg_type,norm_i,qual_edge_embed=None, weight=None):
         #norm_i=[]
-        print(f"Edge_index= norm_i={norm_i} x shape={x[0].shape, x[1].shape} x_j={x_j.shape} x_i={x_i.shape} x_i={x_i} x_j ={x_j}")
+        print(f">>>>>>>>Msg type={msg_type} norm_i={norm_i} x shape={x[0].shape, x[1].shape} x_j={x_j.shape} x_i={x_i.shape} \n x_i={x_i} \n x_j ={x_j}")
         #Hyper edges with qualifiers - Hyperedge Hyperrelational graphs
         #1)all qualifiers of an edge are combined
         # 2) update hyperedge embeddings with qualifiers embedding and the member node embeddings
@@ -282,11 +310,10 @@ class GNNLayer(MessagePassing):
             msg = self.combine_hyperedge_with_qual_edge(x_j,qual_edge_embed)
       
        
-        print(f"in message x_j shape={x_j.shape}")
         #out = norm_i.view(-1, 1,1) * x_j.view(-1, H, F)
 
-        #out = torch.einsum('ij,jk->ik', msg, weight)
-        out = msg
+        out = torch.einsum('ij,jk->ik', msg, weight)
+        #out = msg
         #out = x_j
         #out is the matrix containing all the message rows corresponding to x_j for all the edges
         #in the edge_index. Now these out messages will be aggregated for all the x_i (here the hyperedges)
@@ -296,3 +323,12 @@ class GNNLayer(MessagePassing):
         # Hence multiplying out with norm_i normailzes out by the degree of of edge/node respectively
         #in the first and second call
         return out if norm_i is None else out * norm_i.view(-1, 1)
+    def update(self, aggr_out,x):
+        #Update is for the destination embedding matrix. Size is that of dst tensor
+        #Not based on the number of edges or the messages passed
+        #Any weight to be used for combining the self embedding and the neighbours embedding??
+        #updated_embed = (aggr_out + x[1])*0.5
+        #if aggr_ot is 0 for any particular embedding index, do we need to divide by 2?
+        #print(f"@@@@Aggre = {aggr_out}")
+        #print(f"@@@@Updated = {updated_embed}")
+        return aggr_out
