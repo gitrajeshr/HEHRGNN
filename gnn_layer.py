@@ -29,10 +29,10 @@ class GNNLayer(MessagePassing):
     def set_weights(self,in_channels, out_channels):
         self.lin.reset_parameters()
         #self.bias.data.zero_()
-        self.w_nodes = get_param((in_channels, in_channels))  
-        self.w_edges = get_param((in_channels, out_channels))  
-        self.w_rel = get_param((in_channels, out_channels))  
-        self.w_quals = get_param((in_channels, out_channels))
+        self.w_nodes = get_param((in_channels, in_channels),1)  
+        self.w_edges = get_param((in_channels, out_channels),1)  
+        self.w_rel = get_param((in_channels, out_channels), 1)  
+        self.w_quals = get_param((in_channels, out_channels), 1)
         print(f"In weight w_nodes shape={self.w_nodes.shape} w_edges shape={self.w_edges.shape}")
 
     

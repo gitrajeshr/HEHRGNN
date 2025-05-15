@@ -47,12 +47,13 @@ class InputDataManager():
         self.graph_representation = graph_representation
         self.num_entities = len(self.ent2id)
         self.num_relations = len(self.rel2id)
-        self.num_tuples = len(self.data["train"]["primary_tuples"])
+        self.num_tuples = len(self.data["train"])
         print(f"Num tuples = {self.num_tuples} Enities2id= {self.ent2id} NUm Entities={self.num_entities} Rel2id={self.rel2id} num_relations={self.num_relations}")
 
     def convert_to_graph_representation_for_msg_passing(self,data):
-        primary_tuples=data["primary_tuples"]
-        qual_pairs = data["qual_pairs"]
+        primary_tuples=data[:,:self.max_arity]
+        qual_pairs = data[:,self.max_arity+1:]
+        print(f"@@@@@@@Convert to graph data shape={data.shape} pr_tuples shape={primary_tuples.shape} qual_pairs={qual_pairs.shape}")
 
         #the len of both primary_tuples and qual_pairs should be equal
         num_tuples = len(primary_tuples)
@@ -71,7 +72,6 @@ class InputDataManager():
 
         # Add actual data
         for i, pr_tuple in enumerate(primary_tuples):
-            print(f"In for loop i={i} pr_tuple={pr_tuple}")
             np_hyperedge_type.append(pr_tuple[0])
             #Need to loop only till the entity is 0 or if we know th arity value, use that
             for j,ent in enumerate(pr_tuple[1:]):
@@ -80,15 +80,17 @@ class InputDataManager():
                 np_hyperedge_index[0].append(ent)
                 np_hyperedge_index[1].append(i)
 
-           
+            print(f"In for loop i={i} pr_tuple={pr_tuple} qual_pairs={qual_pairs[i]}")
             qual_rel = np.array(qual_pairs[i][::2])
             qual_ent = np.array(qual_pairs[i][1::2])
             non_zero_rels = qual_rel[np.nonzero(qual_rel)]
             non_zero_ents = qual_ent[np.nonzero(qual_ent)]
-            for j in range(non_zero_ents.shape[0]):
-                qualifier_rel.append(non_zero_rels[j])
-                qualifier_ent.append(non_zero_ents[j])
-                qualifier_edge.append(i)
+            if len(non_zero_ents) > 0:
+                print(f"Non zero quals num={len(non_zero_ents)}")
+                for j in range(non_zero_ents.shape[0]):
+                    qualifier_rel.append(non_zero_rels[j])
+                    qualifier_ent.append(non_zero_ents[j])
+                    qualifier_edge.append(i)
 
         np_qual_details = np.stack((qualifier_rel, qualifier_ent, qualifier_edge), axis=0)
 
@@ -104,13 +106,14 @@ class InputDataManager():
             if not os.path.exists(file_path):
                 print("*** {} not found. Skipping. ***".format(file_path))
                 return ()
-            with open(file_path, "r") as f:
-                lines = f.readlines()
+            """ with open(file_path, "r") as f:
+                lines = f.readlines() """
+            lines = open(file_path, "r").read().splitlines()
             #We need to create hyperegde indexes that can be used  in the message passing
             #But unlike HyperGNN that handles only single relational graphs, we need to have a mechanism to 
             #factor in the relation type of each hyperedge
             #Then we need qual pairs also to be linked to the hyper edges
-            primary_tuples = [] #array of all the primary tuples
+            """  primary_tuples = [] #array of all the primary tuples
             qual_pairs = []  #array of all corresponding qual pairs
             #qual_pairs =
             #qual_pair_indices = 
@@ -122,8 +125,14 @@ class InputDataManager():
                 primary_tuples.append(pr_tuple_id)
                 qual_pairs.append(q_pairs_id)
             
-            data = {"primary_tuples":primary_tuples, "qual_pairs":qual_pairs}
-            return data
+            data = {"primary_tuples":primary_tuples, "qual_pairs":qual_pairs} """
+            statements = []
+            np.random.shuffle(lines)
+            for i, line in enumerate(lines):                
+                pr_tuple_id, q_pairs_id = self.tuple2ids(i,line)
+                stmt = np.concatenate((pr_tuple_id,q_pairs_id),axis=0)
+                statements.append(stmt)
+            return np.array(statements)
     
     """ def read_test(self, file_path):
         if not os.path.exists(file_path):
@@ -143,7 +152,7 @@ class InputDataManager():
         #-- equal number of relns and entities for q pairs, max pairs to be max_q_pairs
         pr_tuple = tuple((line.partition("<<")[2].partition(">>")[0]).split(','))
         q_pairs =  tuple((line.partition(">>")[2]).split(','))
-        #print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
+        print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
         
         pr_tuple_id = np.zeros(self.max_arity + 1)
         for ind,t in enumerate(pr_tuple):
@@ -162,7 +171,7 @@ class InputDataManager():
                 else:
                     q_pairs_id[ind] = self.get_ent_id(t)
         
-        #print(f"Tuple 2 Ids output pr_tuple_id {pr_tuple_id} \n qual_pairs_id = {q_pairs_id}")
+        print(f">>>>>Tuple 2 Ids output pr_tuple_id {pr_tuple_id} \n qual_pairs_id = {q_pairs_id}")
 
         return pr_tuple_id,q_pairs_id
 

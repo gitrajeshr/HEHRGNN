@@ -1,31 +1,9 @@
 import argparse
-import torch
 
 
 from graph_encoder import GraphEncoder
 from data_input import InputDataManager
-
-def set_loss_n_optimizer(model,config):
-    if config.loss == 'CEL':
-        loss_layer = torch.nn.CrossEntropyLoss()
-    elif config.loss == 'BCEL':
-        loss_layer = torch.nn.BCELoss()
-    else:
-        print("Unexpected loss")
-        raise NotImplementedError
-    
-    if config.optimizer == 'sgd':
-        optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
-    elif config.optimizer == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rat)
-    elif config.optimizer == 'adagrad':
-        optimizer = torch.optim.Adagrad(model.parameters(), lr=config.learning_rate)
-
-    else:
-        print("Unexpected optimizer")
-        raise NotImplementedError
-    
-    return loss_layer, optimizer
+from training import set_loss_n_optimizer, training_loop
 
 
 if __name__ == "__main__":
@@ -39,6 +17,10 @@ if __name__ == "__main__":
     parser.add_argument('-batch_size', type=int, default=128)
     parser.add_argument('-device', type=str, default="cuda")
     parser.add_argument('-optimizer', type=str, default="sgd")
+    parser.add_argument('-loss',type=str, default="CEL")
+    parser.add_argument('-epochs', type=int,default=10)
+    parser.add_argument('-learning_rate', type=float,default=0.0001)
+    
 
     config = parser.parse_args()
     dataset = InputDataManager(config)
@@ -53,26 +35,11 @@ if __name__ == "__main__":
     #What is the default optimizer used by nn.Modules? If we don't specify any optimizer
     #for GraphEncoder, does it use a default one? Even for GNNlayer?
     #Where do we put the optimizer, it should be 
+    #we cal it loss_layer because , the loss fn is implemented as a layer in torch.nn
     loss_layer, opt = set_loss_n_optimizer(graph_encoder,config)
     
+    training_loop(graph_encoder,dataset,loss_layer,opt,config)
 
-
-    #Do the training loop
-    
-    opt.zero_grad()
-
-    graph_encoder(dataset.graph_representation)
-
-    loss = loss_layer(predictions, targets)
-    per_epoch_loss.append(loss.item())
-    losses += loss.item()
-    #print(f">>>>>>>Loss{loss.shape}...{loss}")
-    loss.backward()
-    #with amp.scale_loss(loss, opt) as scaled_loss:
-                #     scaled_loss.backward()
-    #if grad_clipping:
-    #    torch.nn.utils.clip_grad_norm_(graph_encoder.parameters(), 1.0)
-    opt.step()
     
     print(">>>>>>>>>Graph Encoder Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
     for name, param in graph_encoder.named_parameters():
