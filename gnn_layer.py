@@ -150,7 +150,7 @@ class GNNLayer(MessagePassing):
         updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
         updated_rel_embed = scatter(updated_edge_embed, edge_type,
                     dim=0, dim_size=num_rels, reduce='mean')
-        print(f"Returning from GNN layer  ent_embed shape={updated_ent_embed.shape} Ent embed = {updated_ent_embed}")
+        print(f"Returning from GNN layer  ent_embed device={updated_ent_embed.device} rel embed device = {updated_rel_embed.device}")
         #The node updated node embeddings are a sum of self, aggregated neighbours -both primary edge and qual edge
         #do we need to divide the value by 3 or so in order to normailize?
         return updated_ent_embed, updated_rel_embed
