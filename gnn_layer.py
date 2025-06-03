@@ -39,7 +39,7 @@ class GNNLayer(MessagePassing):
     def forward(self, ent_embed,rel_embed, graph_data,hyperedge_weight=None):
         # x has shape [N, in_channels]
         # edge_index has shape [2, E]
-        print(f"dataset={graph_data} keys={graph_data.keys()}")
+        #print(f"dataset={graph_data} keys={graph_data.keys()}")
         hyperedge_index = graph_data["edge_index"]
         edge_type = graph_data["edge_type"]
         qual_details = graph_data["qual_details"]
@@ -99,7 +99,7 @@ class GNNLayer(MessagePassing):
         #Below scatter stmt computes the degree of edges by scattering 1's to the indices
         # pointed by the second row of hyper_edge_index i.e. edge index repeated as many times as the number of nodes
        
-        print(f"Qual edge index ={qual_edge_index.shape} {qual_edge_index}")
+        #print(f"Qual edge index ={qual_edge_index.shape} {qual_edge_index}")
        
         # D -> qual nodes degree
         D = scatter(ent_embed.new_ones(qual_edge_index.size(1)), qual_edge_index[0],
@@ -122,13 +122,13 @@ class GNNLayer(MessagePassing):
 
         #1 - quals to hyper edge
 
-        print(f"QQQQQQ>>>>qual_details = {qual_details.shape} qual edge index = {qual_edge_index.shape}")
+        #print(f"QQQQQQ>>>>qual_details = {qual_details.shape} qual edge index = {qual_edge_index.shape}")
         qual_edge_embed = rel_embed[qual_details[0]]
-        print(f"010101 Ent embed = {ent_embed}")
+        #print(f"010101 Ent embed = {ent_embed}")
         msg_type = 1
         propagated_edge_msg1 = self.propagate(qual_edge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_qual_to_edge,qual_edge_embed=qual_edge_embed,  weight=self.w_quals)
         #2 - nodes to hyperedge
-        print(f"121212 Ent embed = {ent_embed}")
+        #print(f"121212 Ent embed = {ent_embed}")
         msg_type = 2
         propagated_edge_msg2 = self.propagate(hyperedge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_node_to_edge, qual_edge_embed =None, weight=self.w_nodes)
         
@@ -270,7 +270,7 @@ class GNNLayer(MessagePassing):
 
     def message(self, edge_index,size,x,x_j,x_i,msg_type,norm_i,qual_edge_embed=None, weight=None):
         #norm_i=[]
-        print(f">>>>>>>>Msg type={msg_type} norm_i={norm_i} x shape={x[0].shape, x[1].shape} x_j={x_j.shape} x_i={x_i.shape} \n x_i={x_i} \n x_j ={x_j}")
+        #print(f">>>>>>>>Msg type={msg_type} norm_i={norm_i} x shape={x[0].shape, x[1].shape} x_j={x_j.shape} x_i={x_i.shape} \n x_i={x_i} \n x_j ={x_j}")
         #Hyper edges with qualifiers - Hyperedge Hyperrelational graphs
         #1)all qualifiers of an edge are combined
         # 2) update hyperedge embeddings with qualifiers embedding and the member node embeddings

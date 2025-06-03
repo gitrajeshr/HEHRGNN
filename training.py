@@ -18,7 +18,7 @@ def set_loss_n_optimizer(model,config):
     if config.optimizer == 'sgd':
         optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
     elif config.optimizer == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rat)
+        optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     elif config.optimizer == 'adagrad':
         optimizer = torch.optim.Adagrad(model.parameters(), lr=config.learning_rate)
 
@@ -31,7 +31,7 @@ def set_loss_n_optimizer(model,config):
 def training_loop(model,dataset,loss_layer,opt,config):
 #Do the training loop
 #convert  dataset to iterable
-    dataloader = DataLoader(dataset.data["train"],batch_size=2)
+    dataloader = DataLoader(dataset.data["train"],config.batch_size)
     
     #torch.set_default_device(config.device)
     train_loss = []
@@ -41,7 +41,7 @@ def training_loop(model,dataset,loss_layer,opt,config):
         batch_losses = []
         iter_dataset = iter(dataloader)
         for batch in tqdm(iter_dataset):
-            print(f"Epoch No.{epch} Batch No.{batch_counter}  batch={batch}")
+            print(f"Epoch No.{epch} Batch No.{batch_counter}")
             batch_counter+=1
             opt.zero_grad()
             batch = batch.to(config.device,dtype=torch.long)
@@ -49,10 +49,11 @@ def training_loop(model,dataset,loss_layer,opt,config):
             rel, ent1, targets = batch[:,0], batch[:,1],batch[:,2]
 
             predictions = model(dataset.graph_representation,rel,ent1)
+            print(f">>>>>>>Predictions {predictions.shape}...Target{targets.shape}")
 
             loss = loss_layer(predictions, targets)
             batch_losses.append(loss.item())
-            #print(f">>>>>>>Loss{loss.shape}...{loss}")
+            print(f">>>>>>>Batch Loss...{loss}")
             loss.backward()
             #with amp.scale_loss(loss, opt) as scaled_loss:
                         #     scaled_loss.backward()

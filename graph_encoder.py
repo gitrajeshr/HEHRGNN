@@ -18,8 +18,8 @@ class GraphEncoder(torch.nn.Module):
         self.num_ent = dataset.num_entities
         self.num_rel = dataset.num_relations
         self.emb_dim1 = 100
-        self.emb_dim2 = 128
-        self.emb_dim3 = 200
+        self.emb_dim2 = 100
+        self.emb_dim3 = 100
         self.init_ent_embed = get_param((self.num_ent, self.emb_dim1), 1) 
         self.init_rel_embed = get_param((self.num_rel, self.emb_dim1), 1) 
         self.bias = get_param((self.num_ent), 0) 
@@ -51,7 +51,7 @@ class GraphEncoder(torch.nn.Module):
         self.gnn_layer1 = GNNLayer(self.emb_dim1, self.emb_dim2,self.device)
         #Instead of having multiple layers defined here, can we have a single layer
         #with multiple propagations? But then we'll have only a single set of weights? Is that ok?
-        self.gnn_layer2 = GNNLayer(self.emb_dim2, self.emb_dim3,self.device)
+        self.gnn_layer2 = GNNLayer(self.emb_dim2, self.emb_dim1,self.device)
 
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
@@ -90,7 +90,7 @@ class GraphEncoder(torch.nn.Module):
 
 
 
-        score = torch.sigmoid(pred)
+        score = torch.softmax(pred)
         return score
     def forward(self,graph_data,rel,ent1):
         #Should we make ent_embed abd rel_embed as registered buffers so that they are 

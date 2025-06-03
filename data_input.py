@@ -80,13 +80,13 @@ class InputDataManager():
                 np_hyperedge_index[0].append(ent)
                 np_hyperedge_index[1].append(i)
 
-            print(f"In for loop i={i} pr_tuple={pr_tuple} qual_pairs={qual_pairs[i]}")
+            #print(f"In for loop i={i} pr_tuple={pr_tuple} qual_pairs={qual_pairs[i]}")
             qual_rel = np.array(qual_pairs[i][::2])
             qual_ent = np.array(qual_pairs[i][1::2])
             non_zero_rels = qual_rel[np.nonzero(qual_rel)]
             non_zero_ents = qual_ent[np.nonzero(qual_ent)]
             if len(non_zero_ents) > 0:
-                print(f"Non zero quals num={len(non_zero_ents)}")
+                #print(f"Non zero quals num={len(non_zero_ents)}")
                 for j in range(non_zero_ents.shape[0]):
                     qualifier_rel.append(non_zero_rels[j])
                     qualifier_ent.append(non_zero_ents[j])
@@ -152,7 +152,7 @@ class InputDataManager():
         #-- equal number of relns and entities for q pairs, max pairs to be max_q_pairs
         pr_tuple = tuple((line.partition("<<")[2].partition(">>")[0]).split(','))
         q_pairs =  tuple((line.partition(">>")[2]).split(','))
-        print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
+        #print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
         
         pr_tuple_id = np.zeros(self.max_arity + 1)
         for ind,t in enumerate(pr_tuple):
@@ -171,7 +171,7 @@ class InputDataManager():
                 else:
                     q_pairs_id[ind] = self.get_ent_id(t)
         
-        print(f">>>>>Tuple 2 Ids output pr_tuple_id {pr_tuple_id} \n qual_pairs_id = {q_pairs_id}")
+        #print(f">>>>>Tuple 2 Ids output pr_tuple_id {pr_tuple_id} \n qual_pairs_id = {q_pairs_id}")
 
         return pr_tuple_id,q_pairs_id
 
