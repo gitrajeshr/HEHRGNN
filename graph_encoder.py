@@ -2,7 +2,6 @@ import torch
 from utils import get_param
 from torch.nn.init import xavier_normal_
 
-
 from gnn_layer import GNNLayer
 
 #This is the encoder that generates embeddings for the nodes/edges in the input graph. 
@@ -86,11 +85,9 @@ class GraphEncoder(torch.nn.Module):
 
         #In StarE Transformer is used as the decoder for predicting the entity embedding
         #The score generated is as a probability over all the entities
-
-
-
-
-        score = torch.softmax(pred)
+        print(f"^^^^^^^^^^In Predict entity Max={torch.max(pred)} pred= {pred}")
+        #score = torch.sigmoid(pred)
+        score = pred
         return score
     def forward(self,graph_data,rel,ent1):
         #Should we make ent_embed abd rel_embed as registered buffers so that they are 

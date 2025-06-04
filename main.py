@@ -17,8 +17,8 @@ if __name__ == "__main__":
     parser.add_argument('-batch_size', type=int, default=128)
     parser.add_argument('-device', type=str, default="cuda")
     parser.add_argument('-optimizer', type=str, default="adam")
-    parser.add_argument('-loss',type=str, default="BCEL")
-    parser.add_argument('-epochs', type=int,default=10)
+    parser.add_argument('-loss',type=str, default="CEL")
+    parser.add_argument('-epochs', type=int,default=100)
     parser.add_argument('-learning_rate', type=float,default=0.001)
     #tried 0.0001
     

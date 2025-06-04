@@ -31,9 +31,10 @@ def set_loss_n_optimizer(model,config):
 def training_loop(model,dataset,loss_layer,opt,config):
 #Do the training loop
 #convert  dataset to iterable
-    dataloader = DataLoader(dataset.data["train"],config.batch_size)
-    
+    dataloader = DataLoader(dataset.data["train"],config.batch_size)    
     #torch.set_default_device(config.device)
+    log_file = open("training_loss.txt", "w")
+
     train_loss = []
     for epch in range(config.epochs):
         model.train()
@@ -54,6 +55,7 @@ def training_loop(model,dataset,loss_layer,opt,config):
             loss = loss_layer(predictions, targets)
             batch_losses.append(loss.item())
             print(f">>>>>>>Batch Loss...{loss}")
+            log_file.write(f"EPoch {epch} Batch {batch_counter} Loss: {loss} \n")
             loss.backward()
             #with amp.scale_loss(loss, opt) as scaled_loss:
                         #     scaled_loss.backward()
@@ -66,4 +68,6 @@ def training_loop(model,dataset,loss_layer,opt,config):
         print(f"[Epoch: {epch} ] Loss: {epoch_loss} Batch Losses={batch_losses}")
         # train_acc.append(np.mean(per_epoch_tr_acc))
         train_loss.append(epoch_loss)
+    log_file.close()
+
    
