@@ -3,7 +3,7 @@ import argparse
 
 from graph_encoder import GraphEncoder
 from data_input import InputDataManager
-from training import set_loss_n_optimizer, training_loop
+from training import Training
 
 
 if __name__ == "__main__":
@@ -20,6 +20,8 @@ if __name__ == "__main__":
     parser.add_argument('-loss',type=str, default="CEL")
     parser.add_argument('-epochs', type=int,default=100)
     parser.add_argument('-learning_rate', type=float,default=0.001)
+    parser.add_argument('-drop_prob', type=float,default=0.3)
+    
     #tried 0.0001
     
 
@@ -37,10 +39,9 @@ if __name__ == "__main__":
     #for GraphEncoder, does it use a default one? Even for GNNlayer?
     #Where do we put the optimizer, it should be 
     #we cal it loss_layer because , the loss fn is implemented as a layer in torch.nn
-    loss_layer, opt = set_loss_n_optimizer(graph_encoder,config)
+    trainer = Training(graph_encoder,config)
+    trainer.training_loop(dataset)
     
-    training_loop(graph_encoder,dataset,loss_layer,opt,config)
-
     
     print(">>>>>>>>>Graph Encoder Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
     for name, param in graph_encoder.named_parameters():

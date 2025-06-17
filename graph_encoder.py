@@ -52,6 +52,11 @@ class GraphEncoder(torch.nn.Module):
         #with multiple propagations? But then we'll have only a single set of weights? Is that ok?
         self.gnn_layer2 = GNNLayer(self.emb_dim2, self.emb_dim1,self.device)
 
+        self.hidden_drop1 = torch.nn.Dropout(config.drop_prob)
+        self.hidden_drop2 = torch.nn.Dropout(config.drop_prob)
+
+
+
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
 
@@ -94,11 +99,11 @@ class GraphEncoder(torch.nn.Module):
         #also saved as part of the model, but are not optimized with grad descent
         ent_embed, rel_embed = self.gnn_layer1(self.init_ent_embed,self.init_rel_embed,graph_data)
         #drop reqd?
-        #self.ent_embed = drop1(self.ent_embed)
+        ent_embed = self.hidden_drop1(ent_embed)
         #self.rel_embed = drop1(self.rel_embed)
-        self.ent_embed, self.rel_embed = self.gnn_layer2(ent_embed,rel_embed,graph_data)
+        ent_embed, rel_embed = self.gnn_layer2(ent_embed,rel_embed,graph_data)
         #drop reqd?
-        #self.ent_embed = drop2(self.ent_embed)
+        ent_embed = self.hidden_drop2(ent_embed)
         #self.rel_embed = drop2(self.rel_embed)
         score = self.predict_entity(ent_embed, rel_embed,rel,ent1)
         return score
