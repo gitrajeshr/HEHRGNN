@@ -83,6 +83,20 @@ class Training():
             self.save_model(epch, "valid", is_best_model=is_best_model)
             print("This validation Over") 
      
+    def mark_arities(self,batch):
+        arities = [8 - (t == 0).sum() for t in batch]
+        np_pres_bits = np.zeros((len(batch),6))
+        np_abs_bits = np.ones((len(batch), 6))
+        for i in range(len(batch)):
+            np_pres_bits[i][0:arities[i]] = 1
+            np_abs_bits[i][0:arities[i]] = 0
+
+        pres_bits = torch.from_numpy(np_pres_bits).int().to(self.config.device)
+
+        abs_bits = torch.from_numpy(np_abs_bits).int().to(self.config.device)
+
+        return pres_bits,abs_bits
+
 
     def training_loop(self,dataset):
     #Do the training loop
@@ -105,16 +119,19 @@ class Training():
                 batch_counter+=1
                 opt.zero_grad()
                 batch = batch.to(config.device,dtype=torch.long)
+                rel, targets, ent2, ent3, ent4, ent5, ent6 = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6]
+                pres_bits,abs_bits = self.mark_arities(batch)
+                labels = torch.torch.zeros(batch.size(0),dataset.num_entities,device=self.config.device)
+                print(f">>>>>>>...Target{targets.shape} targets={targets}")
 
-                rel, ent1, targets = batch[:,0], batch[:,1],batch[:,2]
+                labels[:,targets]=1
 
-                predictions = model(dataset.graph_representation,rel,ent1)
-                print(f">>>>>>>Predictions {predictions.shape}...Target{targets.shape}")
+                predictions = model(dataset.graph_representation,rel,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
 
                 loss = self.loss_layer(predictions, targets)
                 batch_losses.append(loss.item())
                 print(f">>>>>>>Batch Loss...{loss}")
-                log_file.write(f"EPoch {epch} Batch {batch_counter} Loss: {loss} \n")
+                log_file.write(f"Epoch {epch} Batch {batch_counter} Loss: {loss} \n")
                 loss.backward()
                 #with amp.scale_loss(loss, opt) as scaled_loss:
                             #     scaled_loss.backward()

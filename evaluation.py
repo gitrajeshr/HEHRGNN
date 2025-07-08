@@ -1,6 +1,7 @@
 from torch.utils.data import DataLoader
 from tqdm.autonotebook import tqdm
 import torch
+import numpy as np
 
 
 
@@ -32,11 +33,25 @@ class EvaluatorClass():
                 'hits_at {}'.format(k ), 0.0)
         return metrics
 
+    def mark_arities(self,batch):
+        arities = [8 - (t == 0).sum() for t in batch]
+        np_pres_bits = np.zeros((len(batch),6))
+        np_abs_bits = np.ones((len(batch), 6))
+        for i in range(len(batch)):
+            np_pres_bits[i][0:arities[i]] = 1
+            np_abs_bits[i][0:arities[i]] = 0
+
+        pres_bits = torch.from_numpy(np_pres_bits).int().to(self.config.device)
+
+        abs_bits = torch.from_numpy(np_abs_bits).int().to(self.config.device)
+
+        return pres_bits,abs_bits
     
     def evaluate(self,epoch_num):
         model = self.model
+        dataset = self.dataset
         model.eval()
-        dataloader = DataLoader(self.dataset.data["test"],self.config.batch_size)
+        dataloader = DataLoader(dataset.data["test"],self.config.batch_size)
         iter_dataset = iter(dataloader)
         accumulated_metrics={}
         summary_metrics={}
@@ -46,9 +61,15 @@ class EvaluatorClass():
             batch_counter+=1
             batch = batch.to(self.config.device,dtype=torch.long)
 
-            rel, ent1, targets = batch[:,0], batch[:,1],batch[:,2]
+            rel, targets, ent2, ent3, ent4, ent5, ent6 = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6]
+            pres_bits,abs_bits = self.mark_arities(batch)
+            labels = torch.torch.zeros(batch.size(0),dataset.num_entities,device=self.config.device)
+            print(f">>>>>>>..EValuation .Target{targets.shape} targets={targets}")
 
-            predictions = model(self.dataset.graph_representation,rel,ent1)
+            labels[:,targets]=1
+
+            predictions = model(dataset.graph_representation,rel,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
+
             print(f">>>>>>>Predictions {predictions.shape}..")
             self.compute_rank_metrics(predictions,targets,accumulated_metrics)
         

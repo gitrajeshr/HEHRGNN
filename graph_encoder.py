@@ -3,6 +3,7 @@ from utils import get_param
 from torch.nn.init import xavier_normal_
 
 from gnn_layer import GNNLayer
+from graph_decoder import DistMultDecoder,HypEDecoder
 
 #This is the encoder that generates embeddings for the nodes/edges in the input graph. 
 # This in turn calls the gnn_layer. for message propagation among the nodes/edges for graph convolution.
@@ -21,14 +22,12 @@ class GraphEncoder(torch.nn.Module):
         self.emb_dim3 = 100
         self.init_ent_embed = get_param((self.num_ent, self.emb_dim1), 1) 
         self.init_rel_embed = get_param((self.num_rel, self.emb_dim1), 1) 
-        self.bias = get_param((self.num_ent), 0) 
 
 
         """ self.register_buffer('init_ent_embed', torch.randn(self.num_ent, self.emb_dim1))
         #self.ent_embed = torch.randn(self.num_ent, self.emb_dim1)
         xavier_normal_(self.ent_embed)
 
-        self.register_parameter('bias', Parameter(torch.zeros(self.num_ent)))
 
         self.register_buffer('_init_rel_embed', torch.randn(self.num_rel, self.emb_dim1))
         #self.rel_embed = torch.randn(self.num_rel, self.emb_dim1) # * 2 is for inverse relns
@@ -60,9 +59,13 @@ class GraphEncoder(torch.nn.Module):
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
 
+        #Decoders
+        self.dm_decoder = DistMultDecoder(dataset,config)
+        self.hype_decoder = HypEDecoder(dataset,config)
+
 
     
-    def predict_entity(self, ent_embed, rel_embed,rel,sub):
+    def distmult_decoder(self, ent_embed, rel_embed,rel,sub):
         sub_emb = torch.index_select(ent_embed, 0, sub)
         rel_emb = torch.index_select(rel_embed, 0, rel)
         #Pred is how the masked entity embedding os predicted from rel and ent1 embedding
@@ -94,7 +97,7 @@ class GraphEncoder(torch.nn.Module):
         #score = torch.sigmoid(pred)
         score = pred
         return score
-    def forward(self,graph_data,rel,ent1):
+    def forward(self,graph_data,rel_idx, ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits):
         #Should we make ent_embed abd rel_embed as registered buffers so that they are 
         #also saved as part of the model, but are not optimized with grad descent
         ent_embed, rel_embed = self.gnn_layer1(self.init_ent_embed,self.init_rel_embed,graph_data)
@@ -105,7 +108,8 @@ class GraphEncoder(torch.nn.Module):
         #drop reqd?
         ent_embed = self.hidden_drop2(ent_embed)
         #self.rel_embed = drop2(self.rel_embed)
-        score = self.predict_entity(ent_embed, rel_embed,rel,ent1)
+        score = self.dm_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
+        #score = self.hype_decoder(ent_embed,rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
         return score
 
     
