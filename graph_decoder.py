@@ -96,7 +96,8 @@ class HypEDecoder(torch.nn.Module):
         sim_score += self.bias.expand_as(sim_score)
         #print(f"####forward propagation{r.shape}..{e1.shape}")
         #x = torch.sum(x, dim=1)
-        score = torch.sigmoid(sim_score)
+        #score = torch.sigmoid(sim_score)
+        score = sim_score
         return score
 
 class DistMultDecoder(torch.nn.Module):
@@ -110,11 +111,11 @@ class DistMultDecoder(torch.nn.Module):
         def forward(self, ent_embed, rel_embed,r_idx, e1_idx, e2_idx, e3_idx, e4_idx,e5_idx,ms, bs):
             #sub_emb = torch.index_select(ent_embed, 0, sub)
             #rel_emb = torch.index_select(rel_embed, 0, rel)
-            e1 = ent_embed[e1_idx]* ms[:,1].view(-1, 1) + bs[:,1].view(-1, 1)
-            e2 = ent_embed[e2_idx]* ms[:,2].view(-1, 1) + bs[:,2].view(-1, 1)
-            e3 = ent_embed[e3_idx]* ms[:,3].view(-1, 1) + bs[:,3].view(-1, 1)
-            e4 = ent_embed[e4_idx]* ms[:,4].view(-1, 1) + bs[:,4].view(-1, 1)
-            e5 = ent_embed[e5_idx]* ms[:,5].view(-1, 1) + bs[:,5].view(-1, 1)
+            e1 = ent_embed[e1_idx]* ms[:,0].view(-1, 1) + bs[:,0].view(-1, 1)
+            e2 = ent_embed[e2_idx]* ms[:,1].view(-1, 1) + bs[:,1].view(-1, 1)
+            e3 = ent_embed[e3_idx]* ms[:,2].view(-1, 1) + bs[:,2].view(-1, 1)
+            e4 = ent_embed[e4_idx]* ms[:,3].view(-1, 1) + bs[:,3].view(-1, 1)
+            e5 = ent_embed[e5_idx]* ms[:,4].view(-1, 1) + bs[:,4].view(-1, 1)
 
             r = rel_embed[r_idx]
 
@@ -138,12 +139,14 @@ class DistMultDecoder(torch.nn.Module):
 
             #DIstMult decoder as given in CompGCN
             pred = r * e1 * e2 * e3 * e4 * e5
+            #print(f"r = {r} e1={ent_embed[e1_idx]} e2={ent_embed[e2_idx]} e3={ent_embed[e3_idx]} e4={ent_embed[e4_idx]} e5={ent_embed[e5_idx]}")
+            #print(f"ms = {ms} bs = {bs}")
             sim_score = torch.mm(pred, ent_embed.transpose(1, 0))
             sim_score += self.bias.expand_as(sim_score)
 
             #In StarE Transformer is used as the decoder for predicting the entity embedding
             #The score generated is as a probability over all the entities
-            print(f"^^^^^^^^^^In Predict entity Max={torch.max(pred)} pred= {pred}")
+            #print(f"^^^^^^^^^^In Predict entity Max={torch.max(pred)} pred= {pred}")
             #score = torch.sigmoid(sim_score)
             score = sim_score
             return score

@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument('-device', type=str, default="cuda")
     parser.add_argument('-optimizer', type=str, default="adam")
     parser.add_argument('-loss',type=str, default="CEL")
-    parser.add_argument('-epochs', type=int,default=100)
+    parser.add_argument('-epochs', type=int,default=200)
     parser.add_argument('-learning_rate', type=float,default=0.001)
     parser.add_argument('-drop_prob', type=float,default=0.3)
     parser.add_argument('-hype_in_channels', type=int,default=1)

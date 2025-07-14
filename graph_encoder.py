@@ -62,7 +62,7 @@ class GraphEncoder(torch.nn.Module):
         #Decoders
         self.dm_decoder = DistMultDecoder(dataset,config)
         self.hype_decoder = HypEDecoder(dataset,config)
-
+        self.bias = get_param((self.num_ent), 0)
 
     
     def distmult_decoder(self, ent_embed, rel_embed,rel,sub):
@@ -108,7 +108,8 @@ class GraphEncoder(torch.nn.Module):
         #drop reqd?
         ent_embed = self.hidden_drop2(ent_embed)
         #self.rel_embed = drop2(self.rel_embed)
-        score = self.dm_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
+        score = self.distmult_decoder(ent_embed, rel_embed,rel_idx,ent1_idx)
+        #score = self.dm_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
         #score = self.hype_decoder(ent_embed,rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
         return score
 
