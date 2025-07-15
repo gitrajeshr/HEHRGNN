@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 from evaluation import EvaluatorClass
+from training_data_prep import TrainingDataPrep
 
 class Training():
     def __init__(self,model,config):
@@ -83,20 +84,7 @@ class Training():
             self.save_model(epch, "valid", is_best_model=is_best_model)
             print("This validation Over") 
      
-    def mark_arities(self,batch):
-        arities = torch.count_nonzero(batch[:,1:self.config.max_arity+1], dim=1)
-        #print(f"Arities = {arities}")
-        np_pres_bits = np.zeros((len(batch),self.config.max_arity))
-        np_abs_bits = np.ones((len(batch),self.config.max_arity))
-        for i in range(len(batch)):
-            np_pres_bits[i][0:arities[i]] = 1
-            np_abs_bits[i][0:arities[i]] = 0
-
-        pres_bits = torch.from_numpy(np_pres_bits).int().to(self.config.device)
-
-        abs_bits = torch.from_numpy(np_abs_bits).int().to(self.config.device)
-
-        return pres_bits,abs_bits
+    
 
 
     def training_loop(self,dataset):
@@ -104,30 +92,39 @@ class Training():
     #convert  dataset to iterable
         config = self.config
         model = self.model
-        dataloader = DataLoader(dataset.data["train"],config.batch_size)    
+        train_data = dataset.data["train"]
+        #print(f">>>>>>>>original dataset = {train_data}")
+        dataloader = DataLoader(train_data,config.batch_size)    
         #torch.set_default_device(config.device)
         log_file = open("training_loss.txt", "w")
         opt = self.optimizer
         train_loss = []
+        data_prep = TrainingDataPrep(dataset,config)
         evaluator = EvaluatorClass(model,dataset,config)
         for epch in range(config.epochs):
             model.train()
             batch_counter=0
             batch_losses = []
             iter_dataset = iter(dataloader)
-            for batch in tqdm(iter_dataset):
+            for pos_batch in tqdm(iter_dataset):
                 print(f"Epoch No.{epch} Batch No.{batch_counter} ")
                 batch_counter+=1
                 opt.zero_grad()
-                batch = batch.to(config.device,dtype=torch.long)
-                rel, targets, ent2, ent3, ent4, ent5, ent6 = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6]
-                pres_bits,abs_bits = self.mark_arities(batch)
-                labels = torch.torch.zeros(batch.size(0),dataset.num_entities,device=self.config.device)
+                #pos_batch = pos_batch.to(config.device,dtype=torch.long)
+
+                batch = data_prep.add_neg_samples(pos_batch).to(config.device,dtype=torch.long)
+
+                pres_bits,abs_bits = data_prep.mark_arities(batch)
+
+
+                rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
                 #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
 
-                labels[:,targets]=1
-
-                predictions = model(dataset.graph_representation,rel,ent2,ent3,ent4,ent5,ent6,pres_bits[:,1:],abs_bits[:,1:])
+                predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits[:,1:],abs_bits[:,1:])
+                #predictions is the score for all samples in the batch, +ve as well the corresponding -ves. 
+                #Predictions is of shape(bs,1)
+                #We'll transform the shape into (pos_bs, 1+num_neg_samples) and then apply BCEloss
+                predictions,targets = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
                 #predictions is raw logit values for all the entities i.e the likelihood of each entity 
                 # to be the predicted/masked entity
                 if(config.loss == 'CEL'):
@@ -135,8 +132,9 @@ class Training():
                     loss = self.loss_layer(predictions, targets)
                 else:
                     #pytorch BCEL expects probability values for the +ve class. Hence sigmoid is to be applied
-                    predictions = torch.sigmoid(sim_score)
-                    loss = self.loss_layer(predictions, labels)
+                    predictions = torch.sigmoid(predictions)
+                    print(f"^^^^^Before Loss predictions shape={predictions.shape} targets={targets.shape}")
+                    loss = self.loss_layer(predictions, targets)
                 batch_losses.append(loss.item())
                 print(f">>>>>>>Batch Loss...{loss}")
                 log_file.write(f"Epoch {epch} Batch {batch_counter} Loss: {loss} \n")

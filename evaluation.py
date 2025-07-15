@@ -2,6 +2,7 @@ from torch.utils.data import DataLoader
 from tqdm.autonotebook import tqdm
 import torch
 import numpy as np
+from training_data_prep import TrainingDataPrep
 
 
 
@@ -21,8 +22,8 @@ class EvaluatorClass():
         ents_to_ignore[b_range, targets] = 0        
         ents_to_ignore[:, exclude_ents] = 1     
         predictions[ents_to_ignore.bool()] = -1000000 """
-        
-        ranks = 1 + torch.argsort(torch.argsort(predictions, dim=1, descending=True), dim=1, descending=False)[b_range, targets]
+        #Target is always 0 because our +ve tuple is the first one in each row
+        ranks = 1 + torch.argsort(torch.argsort(predictions, dim=1, descending=True), dim=1, descending=False)[b_range, 0]
         print(f"Ranks computed = {ranks}")
         ranks = ranks.float()
         metrics['count'] = torch.numel(ranks) + metrics.get('count', 0.0)
@@ -33,22 +34,11 @@ class EvaluatorClass():
                 'hits_at {}'.format(k ), 0.0)
         return metrics
 
-    def mark_arities(self,batch):
-        arities = [8 - (t == 0).sum() for t in batch]
-        np_pres_bits = np.zeros((len(batch),6))
-        np_abs_bits = np.ones((len(batch), 6))
-        for i in range(len(batch)):
-            np_pres_bits[i][0:arities[i]] = 1
-            np_abs_bits[i][0:arities[i]] = 0
-
-        pres_bits = torch.from_numpy(np_pres_bits).int().to(self.config.device)
-
-        abs_bits = torch.from_numpy(np_abs_bits).int().to(self.config.device)
-
-        return pres_bits,abs_bits
+   
     
     def evaluate(self,epoch_num):
         model = self.model
+        config = self.config
         dataset = self.dataset
         model.eval()
         dataloader = DataLoader(dataset.data["test"],self.config.batch_size)
@@ -56,19 +46,25 @@ class EvaluatorClass():
         accumulated_metrics={}
         summary_metrics={}
         batch_counter=1
-        for batch in tqdm(iter_dataset):
+        data_prep = TrainingDataPrep(dataset,config)
+        for pos_batch in tqdm(iter_dataset):
             print(f"Test Batch No.{batch_counter}")
             batch_counter+=1
-            batch = batch.to(self.config.device,dtype=torch.long)
+            
+            batch = data_prep.add_neg_samples(pos_batch).to(config.device,dtype=torch.long)
 
-            rel, targets, ent2, ent3, ent4, ent5, ent6 = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6]
-            pres_bits,abs_bits = self.mark_arities(batch)
-            labels = torch.torch.zeros(batch.size(0),dataset.num_entities,device=self.config.device)
+            pres_bits,abs_bits = data_prep.mark_arities(batch)
+
+
+            rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
+            #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
+
+            predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits[:,1:],abs_bits[:,1:])
+            #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
+
+
+            predictions,targets = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
             print(f">>>>>>>..EValuation .Target{targets.shape} targets={targets}")
-
-            labels[:,targets]=1
-
-            predictions = model(dataset.graph_representation,rel,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
 
             print(f">>>>>>>Predictions {predictions.shape}..")
             self.compute_rank_metrics(predictions,targets,accumulated_metrics)

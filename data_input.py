@@ -132,7 +132,7 @@ class InputDataManager():
                 pr_tuple_id, q_pairs_id = self.tuple2ids(i,line)
                 stmt = np.concatenate((pr_tuple_id,q_pairs_id),axis=0)
                 statements.append(stmt)
-            return np.array(statements)
+            return np.array(statements,dtype=np.int64)
     
     """ def read_test(self, file_path):
         if not os.path.exists(file_path):
@@ -184,5 +184,7 @@ class InputDataManager():
         if not rel in self.rel2id:
             self.rel2id[rel] = len(self.rel2id)
         return self.rel2id[rel]
+    
+ 
 
 

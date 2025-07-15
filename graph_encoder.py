@@ -60,12 +60,12 @@ class GraphEncoder(torch.nn.Module):
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
 
         #Decoders
-        self.dm_decoder = DistMultDecoder(dataset,config)
+        self.distmult_decoder = DistMultDecoder(dataset,config)
         self.hype_decoder = HypEDecoder(dataset,config)
         self.bias = get_param((self.num_ent), 0)
 
     
-    def distmult_decoder(self, ent_embed, rel_embed,rel,sub):
+    def simple_dm__decoder(self, ent_embed, rel_embed,rel,sub):
         sub_emb = torch.index_select(ent_embed, 0, sub)
         rel_emb = torch.index_select(rel_embed, 0, rel)
         #Pred is how the masked entity embedding os predicted from rel and ent1 embedding
@@ -97,7 +97,7 @@ class GraphEncoder(torch.nn.Module):
         #score = torch.sigmoid(pred)
         score = pred
         return score
-    def forward(self,graph_data,rel_idx, ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits):
+    def forward(self,graph_data,rel_idx, ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits):
         #Should we make ent_embed abd rel_embed as registered buffers so that they are 
         #also saved as part of the model, but are not optimized with grad descent
         ent_embed, rel_embed = self.gnn_layer1(self.init_ent_embed,self.init_rel_embed,graph_data)
@@ -108,8 +108,8 @@ class GraphEncoder(torch.nn.Module):
         #drop reqd?
         ent_embed = self.hidden_drop2(ent_embed)
         #self.rel_embed = drop2(self.rel_embed)
-        score = self.distmult_decoder(ent_embed, rel_embed,rel_idx,ent1_idx)
-        #score = self.dm_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
+        score = self.distmult_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits)
+        #score = self.dm_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits)
         #score = self.hype_decoder(ent_embed,rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
         return score
 

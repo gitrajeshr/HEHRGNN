@@ -79,7 +79,7 @@ class HypEDecoder(torch.nn.Module):
         x = self.fc(x)
         return x
 
-    def forward(self, ent_embed, rel_embed, r_idx, e1_idx, e2_idx, e3_idx, e4_idx, e5_idx, ms, bs):
+    def forward(self, ent_embed, rel_embed, r_idx, e1_idx, e2_idx, e3_idx, e4_idx, e5_idx,ent6_idx,ms, bs):
         #print(f"####forward propagation{r_idx.shape}....{e1_idx.shape}")
         r = rel_embed[r_idx]
         e1 = self.convolve(ent_embed, rel_embed,r_idx, e1_idx, 1) * ms[:,1].view(-1, 1) + bs[:,1].view(-1, 1)
@@ -108,7 +108,7 @@ class DistMultDecoder(torch.nn.Module):
             self.bias = get_param((self.num_ent), 0) 
             #self.register_parameter('bias', Parameter(torch.zeros(self.num_ent)))
 
-        def forward(self, ent_embed, rel_embed,r_idx, e1_idx, e2_idx, e3_idx, e4_idx,e5_idx,ms, bs):
+        def forward(self, ent_embed, rel_embed,r_idx, e1_idx, e2_idx, e3_idx, e4_idx,e5_idx, ent6_idx, ms, bs):
             #sub_emb = torch.index_select(ent_embed, 0, sub)
             #rel_emb = torch.index_select(rel_embed, 0, rel)
             e1 = ent_embed[e1_idx]* ms[:,0].view(-1, 1) + bs[:,0].view(-1, 1)
@@ -138,8 +138,9 @@ class DistMultDecoder(torch.nn.Module):
             pred += self.bias.expand_as(pred) """
 
             #DIstMult decoder as given in CompGCN
-            pred = r * e1 * e2 * e3 * e4 * e5
-            #print(f"r = {r} e1={ent_embed[e1_idx]} e2={ent_embed[e2_idx]} e3={ent_embed[e3_idx]} e4={ent_embed[e4_idx]} e5={ent_embed[e5_idx]}")
+            #pred = r * e1 * e2 * e3 * e4 * e5
+            pred = r*e1
+            print(f"r = {r.shape} e1={e1.shape} ")
             #print(f"ms = {ms} bs = {bs}")
             sim_score = torch.mm(pred, ent_embed.transpose(1, 0))
             sim_score += self.bias.expand_as(sim_score)
@@ -148,5 +149,5 @@ class DistMultDecoder(torch.nn.Module):
             #The score generated is as a probability over all the entities
             #print(f"^^^^^^^^^^In Predict entity Max={torch.max(pred)} pred= {pred}")
             #score = torch.sigmoid(sim_score)
-            score = sim_score
+            score = torch.sum(pred, dim=1)
             return score
