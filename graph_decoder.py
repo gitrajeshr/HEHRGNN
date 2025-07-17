@@ -108,7 +108,7 @@ class DistMultDecoder(torch.nn.Module):
             self.bias = get_param((self.num_ent), 0) 
             #self.register_parameter('bias', Parameter(torch.zeros(self.num_ent)))
 
-        def forward(self, ent_embed, rel_embed,r_idx, e1_idx, e2_idx, e3_idx, e4_idx,e5_idx, ent6_idx, ms, bs):
+        def forward(self, ent_embed, rel_embed,r_idx, e1_idx, e2_idx, e3_idx, e4_idx,e5_idx, e6_idx, ms, bs):
             #sub_emb = torch.index_select(ent_embed, 0, sub)
             #rel_emb = torch.index_select(rel_embed, 0, rel)
             e1 = ent_embed[e1_idx]* ms[:,0].view(-1, 1) + bs[:,0].view(-1, 1)
@@ -116,6 +116,7 @@ class DistMultDecoder(torch.nn.Module):
             e3 = ent_embed[e3_idx]* ms[:,2].view(-1, 1) + bs[:,2].view(-1, 1)
             e4 = ent_embed[e4_idx]* ms[:,3].view(-1, 1) + bs[:,3].view(-1, 1)
             e5 = ent_embed[e5_idx]* ms[:,4].view(-1, 1) + bs[:,4].view(-1, 1)
+            e6 = ent_embed[e6_idx]* ms[:,5].view(-1, 1) + bs[:,4].view(-1, 1)
 
             r = rel_embed[r_idx]
 
@@ -139,7 +140,7 @@ class DistMultDecoder(torch.nn.Module):
 
             #DIstMult decoder as given in CompGCN
             #pred = r * e1 * e2 * e3 * e4 * e5
-            pred = r*e1
+            pred = r*e1*e2
             print(f"r = {r.shape} e1={e1.shape} ")
             #print(f"ms = {ms} bs = {bs}")
             sim_score = torch.mm(pred, ent_embed.transpose(1, 0))

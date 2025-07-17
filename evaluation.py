@@ -12,7 +12,7 @@ class EvaluatorClass():
           self.model = model
           self.config = config
           pass       
-    def compute_rank_metrics(self, predictions, targets, metrics):
+    def compute_rank_metrics(self, predictions, targets, pos_neg_set_size,metrics):
 
         b_range = torch.arange(predictions.size()[0], device=self.config.device)
 
@@ -24,7 +24,7 @@ class EvaluatorClass():
         predictions[ents_to_ignore.bool()] = -1000000 """
         #Target is always 0 because our +ve tuple is the first one in each row
         ranks = 1 + torch.argsort(torch.argsort(predictions, dim=1, descending=True), dim=1, descending=False)[b_range, 0]
-        print(f"Ranks computed = {ranks}")
+        #print(f"b_range = {b_range} \n Predictions = {predictions[0],predictions[1]} \n Ranks computed = {ranks}")
         ranks = ranks.float()
         metrics['count'] = torch.numel(ranks) + metrics.get('count', 0.0)
         metrics['mr'] = torch.sum(ranks).item() + metrics.get('mr', 0.0)
@@ -32,6 +32,7 @@ class EvaluatorClass():
         for k in [1, 3, 5, 10]:
             metrics['hits_at {}'.format(k )] = torch.numel(ranks[ranks <= (k )]) + metrics.get(
                 'hits_at {}'.format(k ), 0.0)
+            print(f"Hits@10={torch.numel(ranks[ranks <= (k )])} Total ranks={torch.numel(ranks)}")
         return metrics
 
    
@@ -59,16 +60,17 @@ class EvaluatorClass():
             rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
             #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
 
-            predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits[:,1:],abs_bits[:,1:])
+            predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
             #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
 
 
-            predictions,targets = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
-            print(f">>>>>>>..EValuation .Target{targets.shape} targets={targets}")
+            predictions,targets,pos_neg_set_size = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
+            #print(f">>>>>>>..EValuation .Target{targets.shape} targets={targets}")
 
             print(f">>>>>>>Predictions {predictions.shape}..")
-            self.compute_rank_metrics(predictions,targets,accumulated_metrics)
+            self.compute_rank_metrics(predictions,targets,pos_neg_set_size,accumulated_metrics)
         
         for k, v in accumulated_metrics.items():
+            print(f" In summary metrics k={k} v={v} dataset len = {float(len(dataloader.dataset))}")
             summary_metrics[k] = v / float(len(dataloader.dataset)) if k != 'count' else v
         return summary_metrics

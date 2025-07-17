@@ -44,22 +44,25 @@ class TrainingDataPrep():
         return arr
     
     def pos_neg_set_predictions_in_row(self,labels, predictions):
-        max_length = self.config.max_arity * self.config.neg_ratio
+        max_length = 1 + self.config.max_arity * self.config.neg_ratio
         positive_indices = torch.nonzero(labels).squeeze()
+        pos_neg_set_size = torch.ones_like(positive_indices)
         #print(f"Maxlength = {max_length} Positive Indices {positive_indices} predictions shape{predictions.shape} labels = {labels}")
         seq = []
         for ind, val in enumerate(positive_indices):
             if(ind == len(positive_indices)-1):
-                pos_neg_row = self.padd(predictions[val:], max_length)                 
+                pos_neg_set = predictions[val:]
+                padded_pos_neg_set = self.padd(pos_neg_set, max_length)                 
             else:
-                pos_neg_row = self.padd(predictions[val:positive_indices[ind + 1]], max_length)
-            
-            seq.append(pos_neg_row)
-            #print(f"POs neg row = {pos_neg_row.shape} {pos_neg_row}")
-        pos_neg_set = torch.stack(seq)
-        targets = torch.zeros_like(pos_neg_set)
+                pos_neg_set = predictions[val:positive_indices[ind + 1]]
+                padded_pos_neg_set = self.padd(pos_neg_set, max_length)
+            pos_neg_set_size[ind] = pos_neg_set.size(0)
+            seq.append(padded_pos_neg_set)
+            #print(f"POs neg row = {pos_neg_set.shape} {pos_neg_set}")
+        pos_neg_predictions = torch.stack(seq)
+        targets = torch.zeros_like(pos_neg_predictions)
         targets[:,0] = 1
-        return pos_neg_set, targets
+        return pos_neg_predictions, targets,pos_neg_set_size
     
     def padd(self, a, max_length):
         b = F.pad(a, (0,max_length - len(a)), 'constant', -math.inf)

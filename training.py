@@ -118,13 +118,13 @@ class Training():
 
 
                 rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
-                #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
+               # print(f">>>>>>>.batch={batch[:11,:]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
 
-                predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits[:,1:],abs_bits[:,1:])
+                predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
                 #predictions is the score for all samples in the batch, +ve as well the corresponding -ves. 
                 #Predictions is of shape(bs,1)
                 #We'll transform the shape into (pos_bs, 1+num_neg_samples) and then apply BCEloss
-                predictions,targets = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
+                predictions,targets,pos_neg_set_size = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
                 #predictions is raw logit values for all the entities i.e the likelihood of each entity 
                 # to be the predicted/masked entity
                 if(config.loss == 'CEL'):

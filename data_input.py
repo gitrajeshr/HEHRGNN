@@ -27,7 +27,7 @@ class InputDataManager():
         self.data = {}
         print("Loading the dataset {} ....".format(self.name))
         self.data["train"] = self.read(os.path.join(self.dir, "train.txt"))
-        #print("Read the dataset {} ....".format(self.data["train"]))
+        print("Read Train the dataset {} ....".format(self.data["train"].shape))
         # Load the test data
         self.data["test"] = self.read(os.path.join(self.dir, "test.txt"))
         # Read the test files by arity, if they exist
