@@ -25,29 +25,31 @@ class TrainingDataPrep():
         return pres_bits,abs_bits
 
     def add_neg_samples(self, pos_batch):
-        #print(f"++++++ve Samples {pos_batch}")
         arities = torch.count_nonzero(pos_batch[:,1:self.config.max_arity+1], dim=1)
 
-        #pos_batch[:,-1] = arities
-        torch.cat((pos_batch,torch.zeros(pos_batch.size(0),1)),1)
-        neg_batch = np.concatenate([self.neg_each(np.repeat([c], self.config.neg_ratio * arities[i] + 1, axis=0), arities[i], self.config.neg_ratio) for i, c in enumerate(pos_batch.numpy())], axis=0)
-
+        pos_batch = torch.cat((pos_batch,torch.zeros(pos_batch.size(0),1)),1)
+        batch = np.concatenate([self.neg_each(np.repeat([c], self.config.neg_ratio * arities[i] + 1, axis=0), arities[i], self.config.neg_ratio,i) for i, c in enumerate(pos_batch.numpy())], axis=0)
+        batch = torch.from_numpy(batch).int().to(self.config.device)
+        if(torch.count_nonzero(batch[:,-1]) >512):
+            print(f"$$$$$$$$$Hey the positive indices more than 512")
+            label = batch[:,-1]
+            pos_indices = torch.nonzero(label).squeeze()
         
-        return torch.from_numpy(neg_batch).int().to(self.config.device)
+        return batch
     
 
-    def neg_each(self, arr, arity, nr):
+    def neg_each(self, arr, arity, nr,i):
         arr[0,-1] = 1
         for a in range(arity):
             arr[a* nr + 1:(a + 1) * nr + 1, a + 1] = np.random.randint(low=1, high=self.num_ent, size=nr)
-
+        
         return arr
     
     def pos_neg_set_predictions_in_row(self,labels, predictions):
         max_length = 1 + self.config.max_arity * self.config.neg_ratio
         positive_indices = torch.nonzero(labels).squeeze()
         pos_neg_set_size = torch.ones_like(positive_indices)
-        #print(f"Maxlength = {max_length} Positive Indices {positive_indices} predictions shape{predictions.shape} labels = {labels}")
+        print(f"Labels = {labels.shape} Positive Indices {positive_indices.shape} predictions shape{predictions.shape}")
         seq = []
         for ind, val in enumerate(positive_indices):
             if(ind == len(positive_indices)-1):

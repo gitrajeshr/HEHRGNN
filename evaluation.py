@@ -32,7 +32,8 @@ class EvaluatorClass():
         for k in [1, 3, 5, 10]:
             metrics['hits_at {}'.format(k )] = torch.numel(ranks[ranks <= (k )]) + metrics.get(
                 'hits_at {}'.format(k ), 0.0)
-            print(f"Hits@10={torch.numel(ranks[ranks <= (k )])} Total ranks={torch.numel(ranks)}")
+            if k == 10:
+                print(f"Hits@10={torch.numel(ranks[ranks <= (k )])} Total ranks={torch.numel(ranks)}")
         return metrics
 
    
@@ -49,7 +50,6 @@ class EvaluatorClass():
         batch_counter=1
         data_prep = TrainingDataPrep(dataset,config)
         for pos_batch in tqdm(iter_dataset):
-            print(f"Test Batch No.{batch_counter}")
             batch_counter+=1
             
             batch = data_prep.add_neg_samples(pos_batch).to(config.device,dtype=torch.long)
@@ -61,13 +61,13 @@ class EvaluatorClass():
             #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
 
             predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
-            #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
+            print(f">>>>>>>predictions ={predictions.shape} total batch size={batch.shape}")
 
 
             predictions,targets,pos_neg_set_size = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
             #print(f">>>>>>>..EValuation .Target{targets.shape} targets={targets}")
 
-            print(f">>>>>>>Predictions {predictions.shape}..")
+            print(f">>>>>>>POs set Predictions {predictions.shape}..")
             self.compute_rank_metrics(predictions,targets,pos_neg_set_size,accumulated_metrics)
         
         for k, v in accumulated_metrics.items():

@@ -118,7 +118,7 @@ class Training():
 
 
                 rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
-               # print(f">>>>>>>.batch={batch[:11,:]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
+                print(f">>>>>>>Pos_batch size = {pos_batch.shape} labels shape={labels.shape} positives={torch.numel(labels[labels!=0])}")
 
                 predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
                 #predictions is the score for all samples in the batch, +ve as well the corresponding -ves. 
