@@ -4,6 +4,9 @@ from torch.utils.data import DataLoader
 import numpy as np
 from evaluation import EvaluatorClass
 from training_data_prep import TrainingDataPrep
+import os
+from datetime import datetime
+
 
 class Training():
     def __init__(self,model,config):
@@ -96,7 +99,8 @@ class Training():
         #print(f">>>>>>>>original dataset = {train_data}")
         dataloader = DataLoader(train_data,config.batch_size)    
         #torch.set_default_device(config.device)
-        log_file = open("training_loss.txt", "w")
+        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_{config.optimizer}_training_log.txt")
+        log_file = open(log_file_name, "w")
         opt = self.optimizer
         train_loss = []
         data_prep = TrainingDataPrep(dataset,config)
@@ -121,6 +125,7 @@ class Training():
                 print(f">>>>>>>Pos_batch size = {pos_batch.shape} labels shape={labels.shape} positives={torch.numel(labels[labels!=0])}")
 
                 predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
+                print(f"IN training predictions shape={predictions.shape}")
                 #predictions is the score for all samples in the batch, +ve as well the corresponding -ves. 
                 #Predictions is of shape(bs,1)
                 #We'll transform the shape into (pos_bs, 1+num_neg_samples) and then apply BCEloss

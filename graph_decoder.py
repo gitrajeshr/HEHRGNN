@@ -18,7 +18,7 @@ class HypEDecoder(torch.nn.Module):
         self.stride = config.hype_stride
         self.hidden_drop_rate = config.hype_hidden_drop
         self.emb_dim = config.emb_dim
-        self.max_arity = 6
+        self.max_arity = config.max_arity
         rel_emb_dim = self.emb_dim
         print(f"Num entities={dataset.num_entities} Num rels={dataset.num_relations}")
         #self.E = torch.nn.Embedding(d.num_ent(), emb_dim, padding_idx=0)
@@ -55,7 +55,7 @@ class HypEDecoder(torch.nn.Module):
     def convolve(self,ent_embed, rel_embed, r_idx, e_idx, pos):
         
         e = ent_embed[e_idx].view(-1, 1, 1, self.emb_dim)
-        print(">>>>>e dimensions", e.shape)
+        #print(">>>>>e dimensions", e.shape)
 
        
         r = rel_embed[r_idx]
@@ -69,7 +69,7 @@ class HypEDecoder(torch.nn.Module):
         k = k.view(-1, self.in_channels, self.out_channels, self.filt_h, self.filt_w)
         k = k.view(e.size(0)*self.in_channels*self.out_channels, 1, self.filt_h, self.filt_w)
         x = x.permute(1, 0, 2, 3)
-        print(f"x shape {x.shape}")
+        #print(f"x shape {x.shape}")
         x = F.conv2d(x, k, stride=self.stride, groups=e.size(0))
         x = x.view(e.size(0), 1, self.out_channels, 1-self.filt_h+1, -1)
         x = x.permute(0, 3, 4, 1, 2)
@@ -79,25 +79,25 @@ class HypEDecoder(torch.nn.Module):
         x = self.fc(x)
         return x
 
-    def forward(self, ent_embed, rel_embed, r_idx, e1_idx, e2_idx, e3_idx, e4_idx, e5_idx,ent6_idx,ms, bs):
+    def forward(self, ent_embed, rel_embed, r_idx, e1_idx, e2_idx, e3_idx, e4_idx, e5_idx,e6_idx,ms, bs):
         #print(f"####forward propagation{r_idx.shape}....{e1_idx.shape}")
         r = rel_embed[r_idx]
-        e1 = self.convolve(ent_embed, rel_embed,r_idx, e1_idx, 1) * ms[:,1].view(-1, 1) + bs[:,1].view(-1, 1)
-        e2 = self.convolve(ent_embed, rel_embed,r_idx, e2_idx, 2) * ms[:,2].view(-1, 1) + bs[:,2].view(-1, 1)
-        e3 = self.convolve(ent_embed, rel_embed,r_idx, e3_idx, 3) * ms[:,3].view(-1, 1) + bs[:,3].view(-1, 1)
-        e4 = self.convolve(ent_embed, rel_embed,r_idx, e4_idx, 4) * ms[:,4].view(-1, 1) + bs[:,4].view(-1, 1)
-        e5 = self.convolve(ent_embed, rel_embed,r_idx, e5_idx, 5) * ms[:,5].view(-1, 1) + bs[:,5].view(-1, 1)
-        #e6 = self.convolve(ent_embed, rel_embed,r_idx, e6_idx, 5) * ms[:,5].view(-1, 1) + bs[:,5].view(-1, 1)
+        e1 = self.convolve(ent_embed, rel_embed,r_idx, e1_idx, 1) * ms[:,0].view(-1, 1) + bs[:,0].view(-1, 1)
+        e2 = self.convolve(ent_embed, rel_embed,r_idx, e2_idx, 2) * ms[:,1].view(-1, 1) + bs[:,1].view(-1, 1)
+        e3 = self.convolve(ent_embed, rel_embed,r_idx, e3_idx, 3) * ms[:,2].view(-1, 1) + bs[:,2].view(-1, 1)
+        e4 = self.convolve(ent_embed, rel_embed,r_idx, e4_idx, 4) * ms[:,3].view(-1, 1) + bs[:,3].view(-1, 1)
+        e5 = self.convolve(ent_embed, rel_embed,r_idx, e5_idx, 5) * ms[:,4].view(-1, 1) + bs[:,4].view(-1, 1)
+        e6 = self.convolve(ent_embed, rel_embed,r_idx, e6_idx, 6) * ms[:,5].view(-1, 1) + bs[:,5].view(-1, 1)
 
-        pred = e1 * e2 * e3 * e4 * e5 * r
+        pred = r * e1 * e2 * e3 * e4 * e5 * e6
         #pred = self.hidden_drop(pred)
 
-        sim_score = torch.mm(pred, ent_embed.transpose(1, 0))
-        sim_score += self.bias.expand_as(sim_score)
-        #print(f"####forward propagation{r.shape}..{e1.shape}")
+        #sim_score = torch.mm(pred, ent_embed.transpose(1, 0))
+        #sim_score += self.bias.expand_as(sim_score)
+        #print(f"####forward propagationr shape={r.shape}..e1 shape={e1.shape} ..pred shape={pred.shape}")
         #x = torch.sum(x, dim=1)
         #score = torch.sigmoid(sim_score)
-        score = sim_score
+        score = torch.sum(pred, dim=1)
         return score
 
 class DistMultDecoder(torch.nn.Module):
@@ -116,7 +116,7 @@ class DistMultDecoder(torch.nn.Module):
             e3 = ent_embed[e3_idx]* ms[:,2].view(-1, 1) + bs[:,2].view(-1, 1)
             e4 = ent_embed[e4_idx]* ms[:,3].view(-1, 1) + bs[:,3].view(-1, 1)
             e5 = ent_embed[e5_idx]* ms[:,4].view(-1, 1) + bs[:,4].view(-1, 1)
-            e6 = ent_embed[e6_idx]* ms[:,5].view(-1, 1) + bs[:,4].view(-1, 1)
+            e6 = ent_embed[e6_idx]* ms[:,5].view(-1, 1) + bs[:,5].view(-1, 1)
 
             r = rel_embed[r_idx]
 
@@ -139,12 +139,12 @@ class DistMultDecoder(torch.nn.Module):
             pred += self.bias.expand_as(pred) """
 
             #DIstMult decoder as given in CompGCN
-            #pred = r * e1 * e2 * e3 * e4 * e5
-            pred = r*e1*e2
+            pred = r * e1 * e2 * e3 * e4 * e5 * e6
+            #pred = r*e1*e2
             print(f"r = {r.shape} e1={e1.shape} ")
             #print(f"ms = {ms} bs = {bs}")
-            sim_score = torch.mm(pred, ent_embed.transpose(1, 0))
-            sim_score += self.bias.expand_as(sim_score)
+            #sim_score = torch.mm(pred, ent_embed.transpose(1, 0))
+            #sim_score += self.bias.expand_as(sim_score)
 
             #In StarE Transformer is used as the decoder for predicting the entity embedding
             #The score generated is as a probability over all the entities

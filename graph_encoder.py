@@ -60,43 +60,16 @@ class GraphEncoder(torch.nn.Module):
         if self.gnn_layer1: self.gnn_layer1.to(self.device)
 
         #Decoders
-        self.distmult_decoder = DistMultDecoder(dataset,config)
-        self.hype_decoder = HypEDecoder(dataset,config)
+        match config.decoder:
+            case "distmult":
+                self.decoder = DistMultDecoder(dataset,config)
+            case "hype": 
+                self.decoder = HypEDecoder(dataset,config)
+        
         self.bias = get_param((self.num_ent), 0)
 
     
-    def simple_dm__decoder(self, ent_embed, rel_embed,rel,sub):
-        sub_emb = torch.index_select(ent_embed, 0, sub)
-        rel_emb = torch.index_select(rel_embed, 0, rel)
-        #Pred is how the masked entity embedding os predicted from rel and ent1 embedding
-
-        #ConvE decoder
-        """  stk_inp			= self.concat(sub_emb, rel_emb)
-        pred				= self.bn0(stk_inp)
-        pred				= self.m_conv1(pred)
-        pred				= self.bn1(pred)
-        pred				= F.relu(pred)
-        pred				= self.feature_drop(pred)
-        pred				= pred.view(-1, self.flat_sz)
-        pred				= self.fc(pred)
-        pred				= self.hidden_drop2(pred)
-        pred				= self.bn2(pred)
-        pred				= F.relu(pred)
-
-        pred = torch.mm(pred, ent_embed.transpose(1,0))
-        pred += self.bias.expand_as(pred) """
-
-        #DIstMult decoder
-        pred = sub_emb * rel_emb
-        pred = torch.mm(pred, ent_embed.transpose(1, 0))
-        pred += self.bias.expand_as(pred)
-
-        #In StarE Transformer is used as the decoder for predicting the entity embedding
-        #The score generated is as a probability over all the entities
-        print(f"^^^^^^^^^^In Predict entity Max={torch.max(pred)} pred= {pred}")
-        #score = torch.sigmoid(pred)
-        score = pred
-        return score
+   
     def forward(self,graph_data,rel_idx, ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits):
         #Should we make ent_embed abd rel_embed as registered buffers so that they are 
         #also saved as part of the model, but are not optimized with grad descent
@@ -108,7 +81,7 @@ class GraphEncoder(torch.nn.Module):
         #drop reqd?
         ent_embed = self.hidden_drop2(ent_embed)
         #self.rel_embed = drop2(self.rel_embed)
-        score = self.distmult_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits)
+        score = self.decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits)
         #score = self.dm_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits)
         #score = self.hype_decoder(ent_embed,rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
         return score

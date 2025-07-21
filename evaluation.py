@@ -24,7 +24,7 @@ class EvaluatorClass():
         predictions[ents_to_ignore.bool()] = -1000000 """
         #Target is always 0 because our +ve tuple is the first one in each row
         ranks = 1 + torch.argsort(torch.argsort(predictions, dim=1, descending=True), dim=1, descending=False)[b_range, 0]
-        #print(f"b_range = {b_range} \n Predictions = {predictions[0],predictions[1]} \n Ranks computed = {ranks}")
+        #print(f"#####EValuation Ranks={ranks} \n Predictions = {predictions[0],predictions[1]}")
         ranks = ranks.float()
         metrics['count'] = torch.numel(ranks) + metrics.get('count', 0.0)
         metrics['mr'] = torch.sum(ranks).item() + metrics.get('mr', 0.0)
@@ -67,7 +67,7 @@ class EvaluatorClass():
             predictions,targets,pos_neg_set_size = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
             #print(f">>>>>>>..EValuation .Target{targets.shape} targets={targets}")
 
-            print(f">>>>>>>POs set Predictions {predictions.shape}..")
+            #print(f">>>>>>>POs set Predictions {predictions.shape}..batch = {batch[0],batch[1]}")
             self.compute_rank_metrics(predictions,targets,pos_neg_set_size,accumulated_metrics)
         
         for k, v in accumulated_metrics.items():

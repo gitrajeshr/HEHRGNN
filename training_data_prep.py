@@ -42,7 +42,7 @@ class TrainingDataPrep():
         arr[0,-1] = 1
         for a in range(arity):
             arr[a* nr + 1:(a + 1) * nr + 1, a + 1] = np.random.randint(low=1, high=self.num_ent, size=nr)
-        
+        #print(f"@@@@n neg samples={arr}")
         return arr
     
     def pos_neg_set_predictions_in_row(self,labels, predictions):
