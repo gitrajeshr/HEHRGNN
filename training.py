@@ -99,7 +99,7 @@ class Training():
         #print(f">>>>>>>>original dataset = {train_data}")
         dataloader = DataLoader(train_data,config.batch_size)    
         #torch.set_default_device(config.device)
-        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_{config.optimizer}_training_log.txt")
+        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_training_log.txt")
         log_file = open(log_file_name, "w")
         opt = self.optimizer
         train_loss = []

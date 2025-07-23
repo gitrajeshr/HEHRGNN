@@ -17,9 +17,9 @@ class GraphEncoder(torch.nn.Module):
 
         self.num_ent = dataset.num_entities
         self.num_rel = dataset.num_relations
-        self.emb_dim1 = 100
-        self.emb_dim2 = 100
-        self.emb_dim3 = 100
+        self.emb_dim1 = config.emb_dim
+        self.emb_dim2 = config.emb_dim
+        self.emb_dim3 = config.emb_dim
         self.init_ent_embed = get_param((self.num_ent, self.emb_dim1), 1) 
         self.init_rel_embed = get_param((self.num_rel, self.emb_dim1), 1) 
 

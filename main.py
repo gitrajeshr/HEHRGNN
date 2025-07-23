@@ -10,7 +10,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-model', type=str, default="HEHR")
 
-    parser.add_argument('-dataset', type=str, default="wd50k_new_format")
+    parser.add_argument('-dataset', type=str, default="wd50k_unified_format")
     parser.add_argument('-max_arity', type=str, default=6) 
     parser.add_argument('-max_q_pairs', type=str, default=20) 
     #wd50k dataset was found to have max_qpairs of 20  

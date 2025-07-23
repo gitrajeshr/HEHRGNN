@@ -6,3 +6,7 @@ Jf17K
 ------
 awk -i inplace 'BEGIN {FS="\t"; OFS=","} {printf("<<")} {for (i=1; i<=NF;i++) printf("%s%s",$i,(i!=NF) ? OFS:"") }{printf(">>\n")}' train.txt
 
+FB-AUTO
+-------
+awk -i inplace 'BEGIN {FS="\t"; OFS=","} {printf("<<")} {for (i=1; i<=NF;i++) printf("%s%s",$i,(i!=NF) ? OFS:"") }{printf(">>\n")}' train.txt
+
