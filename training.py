@@ -40,52 +40,34 @@ class Training():
             raise NotImplementedError
         
         return loss_layer, optimizer
-    def save_model(self, itr=0, test_or_valid='test', is_best_model=False):
-            """
-            Save the model state to the output folder.
-            If is_best_model is True, then save the model also as best_model.chkpnt
-            """
-            if is_best_model:
-                torch.save(self.model.state_dict(), os.path.join(self.output_dir, 'best_model.chkpnt'))
-                print(f"######## Saving the BEST MODEL in path {os.path.join(self.output_dir, 'best_model.chkpnt')}")
+   
 
-            model_name = 'model_{}itr.chkpnt'.format(itr)
-            opt_name = 'opt_{}itr.chkpnt'.format(itr) if itr else '{}.chkpnt'.format(self.model_name)
-            #measure_name = '{}_measure_{}itr.json'.format(test_or_valid, itr) if itr else '{}.json'.format(self.model_name)
-            print("######## Saving the model {}".format(os.path.join(self.output_dir, model_name)))
-
-            torch.save(self.model.state_dict(), os.path.join(self.output_dir, model_name))
-            torch.save(self.optimizer.state_dict(), os.path.join(self.output_dir, opt_name))
-            """ if self.measure is not None:
-                measure_dict = vars(self.measure)
-                # If a best model exists
-                if self.best_model:
-                    measure_dict["best_iteration"] = self.best_model.best_itr.cpu().item()
-                    measure_dict["best_mrr"] = self.best_model.best_mrr.cpu().item()
-                with open(os.path.join(self.output_dir, measure_name), 'w') as f:
-                        json.dump(measure_dict, f, indent=4, sort_keys=True)
-            # Note that measure_by_arity is only computed at test time (not validation)
-            if (self.test_by_arity) and (self.measure_by_arity is not None):
-                H = {}
-                measure_by_arity_name = '{}_measure_{}itr_by_arity.json'.format(test_or_valid, itr) if itr else '{}.json'.format(self.model_name)
-                for key in self.measure_by_arity:
-                    H[key] = vars(self.measure_by_arity[key])
-                with open(os.path.join(self.output_dir, measure_by_arity_name), 'w') as f:
-                        json.dump(H, f, indent=4, sort_keys=True) """
-
-    def save_if_best_model(self,epch,dataset):
+    def save_if_best_model(self,model,metrics,best_metrics, epch,log_filename):
         
             # This is the best model we have so far if
             # no "best_model" exists yes, or if this MRR is better than what we had before
-            is_best_model = (self.best_model is None) or (mrr > self.best_model.best_mrr)
+            is_best_model = (best_metrics.get("mrr") is None ) or (metrics["mrr"] > best_metrics["mrr"])
             if is_best_model:
                 self.best_model = self.model
                 # Update the best_mrr value
-                self.best_model.best_mrr.data = torch.from_numpy(np.array([mrr]))
-                self.best_model.best_itr.data = torch.from_numpy(np.array([it]))
+                best_metrics["mrr"] = metrics["mrr"]
+                for k in [1, 3, 5, 10]:
+                    best_metrics['hits_at {}'.format(k )] = metrics['hits_at {}'.format(k )]
+                 
+                
             # Save the model at checkpoint
-            self.save_model(epch, "valid", is_best_model=is_best_model)
-            print("This validation Over") 
+            model_details_str = log_filename.rsplit("/", 1)[-1][:-len("_training_log.txt")]
+            if is_best_model:
+                saved_model_name = model_details_str+'_best_model.chkpnt' 
+                torch.save(model.state_dict(), os.path.join(self.config.output_dir, saved_model_name))
+                print(f"######## Saving the BEST MODEL in path {saved_model_name}")
+            if (epch % 10 == 0):
+                saved_model_name = model_details_str+'_epch_{}_model.chkpnt'.format(epch)
+                opt_name = model_details_str +'_epch_{}_opt.chkpnt'.format(epch) 
+                print("######## Saving the model {}".format(saved_model_name))
+
+                torch.save(self.model.state_dict(), os.path.join(self.config.output_dir, saved_model_name))
+                torch.save(self.optimizer.state_dict(), os.path.join(self.config.output_dir, opt_name))
      
     
 
@@ -99,12 +81,18 @@ class Training():
         #print(f">>>>>>>>original dataset = {train_data}")
         dataloader = DataLoader(train_data,config.batch_size)    
         #torch.set_default_device(config.device)
-        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_training_log.txt")
+        if(config.inductive ==1):
+            ind_trans= "inductive"
+        else:
+            ind_trans= "transductive"
+
+        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_{ind_trans}_training_log.txt")
         log_file = open(log_file_name, "w")
         opt = self.optimizer
         train_loss = []
         data_prep = TrainingDataPrep(dataset,config)
         evaluator = EvaluatorClass(model,dataset,config)
+        best_metrics={}
         for epch in range(config.epochs):
             model.train()
             batch_counter=0
@@ -115,8 +103,8 @@ class Training():
                 batch_counter+=1
                 opt.zero_grad()
                 #pos_batch = pos_batch.to(config.device,dtype=torch.long)
-
-                batch = data_prep.add_neg_samples(pos_batch).to(config.device,dtype=torch.long)
+                #add_neg_samples second param is train_or_eval which is 1 for eval and 0 for train
+                batch = data_prep.add_neg_samples(pos_batch,0).to(config.device,dtype=torch.long)
 
                 pres_bits,abs_bits = data_prep.mark_arities(batch)
 
@@ -158,11 +146,11 @@ class Training():
 
             # Evaluate the model every 100th iteration or if it is the last iteration
             if (epch % 1 == 0) or (epch == config.epochs):
-                model.eval()
-                with torch.no_grad():
-                    metrics = evaluator.evaluate(epch)
-                    print(f" EValuation results {metrics}")
-                    log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
+                # with torch.no_grad()
+                # model.eval() # both these setting are done in Eval. No need to do it here
+                metrics = evaluator.evaluate()
+                log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
+                self.save_if_best_model(model,metrics,best_metrics,epch,log_file_name)
         log_file.close()
 
     

@@ -41,7 +41,7 @@ class HypEDecoder(torch.nn.Module):
         # Hypernetwork
         self.fc1 = torch.nn.Linear(rel_emb_dim + self.max_arity + 1, fc1_length)
         self.fc2 = torch.nn.Linear(self.max_arity + 1, fc1_length)
-        self.bias = get_param((self.num_ent), 0) 
+        #self.bias = get_param((self.num_ent), 0) 
 
 
     """ 
@@ -105,7 +105,7 @@ class DistMultDecoder(torch.nn.Module):
             super().__init__()
             self.num_ent = dataset.num_entities
             self.num_rel = dataset.num_relations
-            self.bias = get_param((self.num_ent), 0) 
+            #self.bias = get_param((self.num_ent), 0) 
             #self.register_parameter('bias', Parameter(torch.zeros(self.num_ent)))
 
         def forward(self, ent_embed, rel_embed,r_idx, e1_idx, e2_idx, e3_idx, e4_idx,e5_idx, e6_idx, ms, bs):

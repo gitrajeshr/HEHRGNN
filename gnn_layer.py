@@ -1,11 +1,11 @@
 import torch
 from torch_geometric.nn import MessagePassing
-from torch.nn import Linear
+from torch.nn import Linear, Parameter
 from torch_geometric.utils import add_self_loops, degree
 from utils import get_param
 from torch_geometric.utils import scatter, softmax
 from torch import Tensor
-
+import torch.nn.functional as F
 
 
 
@@ -29,11 +29,14 @@ class GNNLayer(MessagePassing):
     def set_weights(self,in_channels, out_channels):
         self.lin.reset_parameters()
         #self.bias.data.zero_()
-        self.w_nodes = get_param((in_channels, in_channels),1)  
-        self.w_edges = get_param((in_channels, out_channels),1)  
-        self.w_rel = get_param((in_channels, out_channels), 1)  
-        self.w_quals = get_param((in_channels, out_channels), 1)
-        print(f"In weight w_nodes shape={self.w_nodes.shape} w_edges shape={self.w_edges.shape}")
+        self.w_quals_to_edges= get_param((in_channels, out_channels), 1)
+        self.w_nodes_to_edges = get_param((in_channels, in_channels),1)  
+        self.w_edges_to_nodes = get_param((in_channels, out_channels),1)  
+        self.w_edges_to_quals = get_param((in_channels, out_channels),1)  
+        #self.w_rel = get_param((in_channels, out_channels), 1)  
+        self.w_combine_edge_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
+        self.w_combine_ent_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
+        print(f"In weight w_nodes shape={self.w_nodes_to_edges.shape} w_edges shape={self.w_edges_to_nodes.shape}")
 
     
     def forward(self, ent_embed,rel_embed, graph_data,hyperedge_weight=None):
@@ -117,7 +120,8 @@ class GNNLayer(MessagePassing):
         #first propagate messages from the member nodes to the hyperedges and update the edge emebddings
         #Then propagate from the hyperedges to the member nodes and update the node embeddings
        
-       ##!!The arguments to propagate should be such that, if size=(N,M) and , if x_i is accessed inside message
+       ##!!Inside the message () function, x_j is the src node, x_i is the dst node
+       # The arguments to propagate should be such that, if size=(N,M) and , if x_i is accessed inside message
        #then x has to be of dimension (M,..) and if x_j is accessed then x has to be of dim (N,..)
 
         #1 - quals to hyper edge
@@ -126,33 +130,36 @@ class GNNLayer(MessagePassing):
         qual_edge_embed = rel_embed[qual_details[0]]
         #print(f"010101 Ent embed = {ent_embed}")
         msg_type = 1
-        propagated_edge_msg1 = self.propagate(qual_edge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_qual_to_edge,qual_edge_embed=qual_edge_embed,  weight=self.w_quals)
+        propagated_edge_msg1 = self.propagate(qual_edge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_qual_to_edge,qual_edge_embed=qual_edge_embed,  weight=self.w_quals_to_edges)
         #2 - nodes to hyperedge
         #print(f"121212 Ent embed = {ent_embed}")
         msg_type = 2
-        propagated_edge_msg2 = self.propagate(hyperedge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_node_to_edge, qual_edge_embed =None, weight=self.w_nodes)
-        
-        updated_edge_embed = edge_embed* (1/3) + propagated_edge_msg1* (1/3) + propagated_edge_msg2* (1/3)
-        
+        propagated_edge_msg2 = self.propagate(hyperedge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_node_to_edge, qual_edge_embed =None, weight=self.w_nodes_to_edges)
+        #Shold we check if any of the following 3 components is zero before doing 1/3?? And if anything is zero should we do a 1/2?
+        #updated_edge_embed = edge_embed* (1/3) + propagated_edge_msg1* (1/3) + propagated_edge_msg2* (1/3)
+        updated_edge_embed = edge_embed* self.w_combine_edge_embed[0] + propagated_edge_msg1* self.w_combine_edge_embed[1] + propagated_edge_msg2* self.w_combine_edge_embed[2]
+        print(f"In COmbine edge embeds ={self.w_combine_edge_embed}")
         print(f"AFter 2nd propagation shape={updated_edge_embed.shape} hyperedge_index.flip([0]) shape")
         #3 - hyperedge to nodes
         msg_type = 3     
-        propagated_ent_msg1 = self.propagate(hyperedge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type,norm=norm_edge_to_node,qual_edge_embed = None,weight = self.w_edges)
+        propagated_ent_msg1 = self.propagate(hyperedge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type,norm=norm_edge_to_node,qual_edge_embed = None,weight = self.w_edges_to_nodes)
         #4  hyper edge to quals
         msg_type = 4
         #the weight used for this propgn has to be inverse of W_quals
-        propagated_ent_msg2 = self.propagate(qual_edge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type,norm=norm_edge_to_qual,qual_edge_embed=qual_edge_embed,weight = self.w_quals)
-        
-        updated_ent_embed = ent_embed * (1/3) + propagated_ent_msg1 * (1/3)+ propagated_ent_msg2 * (1/3)
+        propagated_ent_msg2 = self.propagate(qual_edge_index.flip([0]),size=(num_edges,num_nodes), x=(updated_edge_embed,ent_embed), msg_type=msg_type,norm=norm_edge_to_qual,qual_edge_embed=qual_edge_embed,weight = self.w_edges_to_quals)
+
+       #The node updated node embeddings are a sum of self, aggregated neighbours -both primary edge and qual edge
+        #do we need to divide the value by 3 or so in order to normailize? 
+        #updated_ent_embed = ent_embed * (1/3) + propagated_ent_msg1 * (1/3)+ propagated_ent_msg2 * (1/3)
+        updated_ent_embed = ent_embed * self.w_combine_ent_embed[0] + propagated_ent_msg1 * self.w_combine_ent_embed[1] + propagated_ent_msg2 * self.w_combine_ent_embed[2] 
+        print(f"In COmbine ent embeds ={self.w_combine_edge_embed}")
 
         #In case of hyper  edges, the relation embeddings have to be updated by propagation from the 
         # neighboring(or member nodes). Need to do it here or Some where else???
-        updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
-        updated_rel_embed = scatter(updated_edge_embed, edge_type,
-                    dim=0, dim_size=num_rels, reduce='mean')
+        #updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
+        updated_rel_embed = scatter(updated_edge_embed, edge_type,dim=0, dim_size=num_rels, reduce='mean')
         print(f"Returning from GNN layer  ent_embed device={updated_ent_embed.device} rel embed device = {updated_rel_embed.device}")
-        #The node updated node embeddings are a sum of self, aggregated neighbours -both primary edge and qual edge
-        #do we need to divide the value by 3 or so in order to normailize?
+        
         return updated_ent_embed, updated_rel_embed
     
     def update_hyperedge_with_nodes(self,edge_embed,obj_embed, weight):
@@ -302,6 +309,7 @@ class GNNLayer(MessagePassing):
             msg = self.combine_qual_node_with_qual_edge(x_j,qual_edge_embed) 
         elif msg_type==2: # from nodes to edge    
             #x[0] is ent_embed, x[1] is edge embed
+            #X_j is the ent_embed 
             msg = x_j 
         elif msg_type==3: #from hyperedges to nodes
             print(f"Hyperedge to nodes Msg type={msg_type}")
@@ -331,4 +339,5 @@ class GNNLayer(MessagePassing):
         #if aggr_ot is 0 for any particular embedding index, do we need to divide by 2?
         #print(f"@@@@Aggre = {aggr_out}")
         #print(f"@@@@Updated = {updated_embed}")
-        return aggr_out
+
+        return F.relu(aggr_out)

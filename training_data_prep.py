@@ -24,11 +24,17 @@ class TrainingDataPrep():
 
         return pres_bits,abs_bits
 
-    def add_neg_samples(self, pos_batch):
+    def add_neg_samples(self, pos_batch,train_or_eval):
         arities = torch.count_nonzero(pos_batch[:,1:self.config.max_arity+1], dim=1)
+        
+        if train_or_eval == 1: #1 is eval, 0 is train
+            neg_ratio = self.num_ent // 100
+        else:
+            neg_ratio = self.config.neg_ratio
+
 
         pos_batch = torch.cat((pos_batch,torch.zeros(pos_batch.size(0),1)),1)
-        batch = np.concatenate([self.neg_each(np.repeat([c], self.config.neg_ratio * arities[i] + 1, axis=0), arities[i], self.config.neg_ratio,i) for i, c in enumerate(pos_batch.numpy())], axis=0)
+        batch = np.concatenate([self.neg_each(np.repeat([c], neg_ratio * arities[i] + 1, axis=0), arities[i], neg_ratio,i) for i, c in enumerate(pos_batch.numpy())], axis=0)
         batch = torch.from_numpy(batch).int().to(self.config.device)
         if(torch.count_nonzero(batch[:,-1]) >512):
             print(f"$$$$$$$$$Hey the positive indices more than 512")

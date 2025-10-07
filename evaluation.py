@@ -3,6 +3,8 @@ from tqdm.autonotebook import tqdm
 import torch
 import numpy as np
 from training_data_prep import TrainingDataPrep
+import os
+from datetime import datetime
 
 
 
@@ -36,41 +38,60 @@ class EvaluatorClass():
                 print(f"Hits@10={torch.numel(ranks[ranks <= (k )])} Total ranks={torch.numel(ranks)}")
         return metrics
 
-   
+    def load_model(self,saved_model):
+        self.model.load_state_dict(torch.load(saved_model))
+        print(f" Saved Models is loaded....")
+        if torch.cuda.is_available():
+            allocated_memory_bytes = torch.cuda.memory_allocated()
+            print(f"Memory allocated by tensors: {allocated_memory_bytes / (1024**2):.2f} MB")
+            free_memory_bytes, total_memory_bytes = torch.cuda.mem_get_info()
+            print(f"Free GPU memory: {free_memory_bytes / (1024**2):.2f} MB")
+            print(f"Total GPU memory: {total_memory_bytes / (1024**2):.2f} MB")
     
-    def evaluate(self,epoch_num):
+    def evaluate(self):
         model = self.model
         config = self.config
         dataset = self.dataset
-        model.eval()
+        
         dataloader = DataLoader(dataset.data["test"],self.config.batch_size)
         iter_dataset = iter(dataloader)
         accumulated_metrics={}
         summary_metrics={}
         batch_counter=1
         data_prep = TrainingDataPrep(dataset,config)
-        for pos_batch in tqdm(iter_dataset):
-            batch_counter+=1
-            
-            batch = data_prep.add_neg_samples(pos_batch).to(config.device,dtype=torch.long)
+        if(config.inductive ==1):
+            ind_trans= "inductive"
+        else:
+            ind_trans= "transductive"
+        eval_log = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_embdim-{config.emb_dim}_{ind_trans}_eval_log.txt")
+        log_file = open(eval_log, "w")
+        model.eval()
+        with torch.no_grad():
+            for pos_batch in tqdm(iter_dataset):
+                batch_counter+=1
+                
+                batch = data_prep.add_neg_samples(pos_batch,1).to(config.device,dtype=torch.long)
 
-            pres_bits,abs_bits = data_prep.mark_arities(batch)
+                pres_bits,abs_bits = data_prep.mark_arities(batch)
 
 
-            rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
-            #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
+                rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
+                #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
 
-            predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
-            print(f">>>>>>>predictions ={predictions.shape} total batch size={batch.shape}")
+                predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
+                print(f">>>>>>>predictions ={predictions.shape} total batch size={batch.shape}")
 
 
-            predictions,targets,pos_neg_set_size = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
-            #print(f">>>>>>>..EValuation .Target{targets.shape} targets={targets}")
+                predictions,targets,pos_neg_set_size = data_prep.pos_neg_set_predictions_in_row(labels,predictions)
+                #print(f">>>>>>>..EValuation .Target{targets.shape} targets={targets}")
 
-            #print(f">>>>>>>POs set Predictions {predictions.shape}..batch = {batch[0],batch[1]}")
-            self.compute_rank_metrics(predictions,targets,pos_neg_set_size,accumulated_metrics)
+                #print(f">>>>>>>POs set Predictions {predictions.shape}..batch = {batch[0],batch[1]}")
+                self.compute_rank_metrics(predictions,targets,pos_neg_set_size,accumulated_metrics)
         
         for k, v in accumulated_metrics.items():
             print(f" In summary metrics k={k} v={v} dataset len = {float(len(dataloader.dataset))}")
             summary_metrics[k] = v / float(len(dataloader.dataset)) if k != 'count' else v
+        print(f" EValuation results {summary_metrics}")
+        log_file.write(f"Evaluation Metrics {summary_metrics} \n")
+        log_file.close()
         return summary_metrics

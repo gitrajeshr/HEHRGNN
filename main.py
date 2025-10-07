@@ -1,9 +1,12 @@
 import argparse
+import os
 
 
 from graph_encoder import GraphEncoder
 from data_input import InputDataManager
 from training import Training
+from evaluation import EvaluatorClass
+
 
 
 if __name__ == "__main__":
@@ -15,8 +18,15 @@ if __name__ == "__main__":
     parser.add_argument('-max_q_pairs', type=str, default=20) 
     #wd50k dataset was found to have max_qpairs of 20  
 
-    parser.add_argument('-neg_ratio', type=int, default=5)
+    parser.add_argument('-neg_ratio', type=int, default=10)
     parser.add_argument('-emb_dim', type=int, default=100)
+    parser.add_argument('-inductive', type=int, default=0)
+    parser.add_argument('-shallow_embed', type=int, default=0)
+
+    
+    
+    #GNN parameters
+    parser.add_argument('-num_gnn_layers',type=int,default=2)
    
     #Decoders implemented are distmult, hype
     parser.add_argument('-decoder', type=str, default="distmult")
@@ -31,15 +41,19 @@ if __name__ == "__main__":
     parser.add_argument('-loss',type=str, default="BCEL")
     parser.add_argument('-epochs', type=int,default=100)
     parser.add_argument('-batch_size', type=int, default=128)
-    parser.add_argument('-learning_rate', type=float,default=0.001)
+    parser.add_argument('-learning_rate', type=float,default=0.001)    #tried 0.0001
+
     parser.add_argument('-drop_prob', type=float,default=0.3)
 
     parser.add_argument('-device', type=str, default="cuda")
+    parser.add_argument('-output_dir', type=str, default="chkpnts")
+    parser.add_argument('-run_mode', type=str, default="train")
+
+    
 
 
 
     
-    #tried 0.0001
     
 
     config = parser.parse_args()
@@ -56,9 +70,23 @@ if __name__ == "__main__":
     #for GraphEncoder, does it use a default one? Even for GNNlayer?
     #Where do we put the optimizer, it should be 
     #we cal it loss_layer because , the loss fn is implemented as a layer in torch.nn
-    trainer = Training(graph_encoder,config)
-    trainer.training_loop(dataset)
     
+    if (config.run_mode=="train"):
+        trainer = Training(graph_encoder,config)        
+        trainer.training_loop(dataset)
+    else:
+        saved_model = os.path.join(config.output_dir, '20250804_203904_wd50k_unified_format_hype_BCEL_embdim-100_epochs-100_inductive_best_model.chkpnt')
+        evaluator = EvaluatorClass(graph_encoder,dataset,config)
+        
+        evaluator.load_model(saved_model)
+    
+        print(">>>>>>>>>Loaded Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
+        for name, param in graph_encoder.named_parameters():
+            if param.requires_grad:
+                print(f"name={name}, param.data = {param.shape}")
+
+        metrics = evaluator.evaluate()  
+
     
     print(">>>>>>>>>Graph Encoder Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
     for name, param in graph_encoder.named_parameters():
