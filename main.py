@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-optimizer', type=str, default="adam")
     parser.add_argument('-loss',type=str, default="BCEL")
-    parser.add_argument('-epochs', type=int,default=100)
+    parser.add_argument('-epochs', type=int,default=20)
     parser.add_argument('-batch_size', type=int, default=128)
     parser.add_argument('-learning_rate', type=float,default=0.001)    #tried 0.0001
 
@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     config = parser.parse_args()
     dataset = InputDataManager(config)
-    print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nGraph Repsn{len(dataset.ent2id)}")
+    print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nNum ents = {len(dataset.ent2id)} \n Num rels = {len(dataset.rel2id)} \n Num edges = {len(dataset.graph_representation['edge_index'])}")
 
     graph_encoder = GraphEncoder(dataset,config).to(config.device)
 

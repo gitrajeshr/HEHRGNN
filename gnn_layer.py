@@ -33,10 +33,11 @@ class GNNLayer(MessagePassing):
         self.w_nodes_to_edges = get_param((in_channels, in_channels),1)  
         self.w_edges_to_nodes = get_param((in_channels, out_channels),1)  
         self.w_edges_to_quals = get_param((in_channels, out_channels),1)  
-        #self.w_rel = get_param((in_channels, out_channels), 1)  
         self.w_combine_edge_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
         self.w_combine_ent_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
         print(f"In weight w_nodes shape={self.w_nodes_to_edges.shape} w_edges shape={self.w_edges_to_nodes.shape}")
+        #!!!For Testing Only. Remove it!!!!
+        self.w_rel = get_param((in_channels, out_channels), 1)  
 
     
     def forward(self, ent_embed,rel_embed, graph_data,hyperedge_weight=None):
@@ -152,7 +153,7 @@ class GNNLayer(MessagePassing):
         #do we need to divide the value by 3 or so in order to normailize? 
         #updated_ent_embed = ent_embed * (1/3) + propagated_ent_msg1 * (1/3)+ propagated_ent_msg2 * (1/3)
         updated_ent_embed = ent_embed * self.w_combine_ent_embed[0] + propagated_ent_msg1 * self.w_combine_ent_embed[1] + propagated_ent_msg2 * self.w_combine_ent_embed[2] 
-        print(f"In COmbine ent embeds ={self.w_combine_edge_embed}")
+        print(f"In Combine ent embeds ={self.w_combine_edge_embed}")
 
         #In case of hyper  edges, the relation embeddings have to be updated by propagation from the 
         # neighboring(or member nodes). Need to do it here or Some where else???
