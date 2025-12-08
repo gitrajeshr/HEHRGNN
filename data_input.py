@@ -48,7 +48,8 @@ class InputDataManager():
         self.num_entities = len(self.ent2id)
         self.num_relations = len(self.rel2id)
         self.num_tuples = len(self.data["train"])
-        print(f"Num tuples = {self.num_tuples} Enities2id= {self.ent2id} NUm Entities={self.num_entities} Rel2id={self.rel2id} num_relations={self.num_relations}")
+        #print(f"Enities2id= {self.ent2id} Rel2id={self.rel2id}")
+        print(f"Num tuples = {self.num_tuples}  NUm Entities={self.num_entities}  num_relations={self.num_relations}")
 
     def convert_to_graph_representation_for_msg_passing(self,data):
         primary_tuples=data[:,:self.max_arity]
@@ -153,7 +154,8 @@ class InputDataManager():
         pr_tuple = tuple((line.partition("<<")[2].partition(">>")[0]).split(','))
         q_pairs =  tuple((line.partition(">>")[2]).split(','))
         #print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
-        
+        #!!!!Below line only for testing without qualifiers
+        #!!!!q_pairs = tuple()
         pr_tuple_id = np.zeros(self.max_arity + 1)
         for ind,t in enumerate(pr_tuple):
             #print(f"enumerate {ind}<>{t}")

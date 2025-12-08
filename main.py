@@ -70,7 +70,11 @@ if __name__ == "__main__":
     #for GraphEncoder, does it use a default one? Even for GNNlayer?
     #Where do we put the optimizer, it should be 
     #we cal it loss_layer because , the loss fn is implemented as a layer in torch.nn
-    
+    print(">>>>>>>>>Graph Encoder Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
+    for name, param in graph_encoder.named_parameters():
+        if param.requires_grad:
+            print(f"name={name}, param.data = {param.shape}")
+   
     if (config.run_mode=="train"):
         trainer = Training(graph_encoder,config)        
         trainer.training_loop(dataset)
@@ -85,12 +89,7 @@ if __name__ == "__main__":
             if param.requires_grad:
                 print(f"name={name}, param.data = {param.shape}")
 
-        metrics = evaluator.evaluate()  
-
-    
-    print(">>>>>>>>>Graph Encoder Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
-    for name, param in graph_encoder.named_parameters():
-        if param.requires_grad:
-            print(f"name={name}, param.data = {param.shape}")
+        metrics = evaluator.evaluate()     
+   
    
 

@@ -13,7 +13,10 @@ import torch.nn.functional as F
 class GNNLayer(MessagePassing):
     def __init__(self, in_channels, out_channels,device):
         super().__init__(aggr='add', flow='source_to_target',node_dim=0)  #node_dim=0??
-        self.lin = Linear(in_channels, out_channels, bias=False)
+        self.ent_lin = Linear(in_channels, out_channels, bias=False)
+        self.rel_lin = Linear(in_channels, out_channels, bias=False)
+        #self.ent_bn = torch.nn.BatchNorm1d(out_channels)
+        #self.rel_bn = torch.nn.BatchNorm1d(out_channels)
         #self.bias = Parameter(torch.empty(out_channels))
         self.set_weights(out_channels, out_channels)
         self.device= device
@@ -27,7 +30,8 @@ class GNNLayer(MessagePassing):
 
 
     def set_weights(self,in_channels, out_channels):
-        self.lin.reset_parameters()
+        self.ent_lin.reset_parameters()
+        self.rel_lin.reset_parameters()
         #self.bias.data.zero_()
         self.w_quals_to_edges= get_param((in_channels, out_channels), 1)
         self.w_nodes_to_edges = get_param((in_channels, in_channels),1)  
@@ -37,7 +41,7 @@ class GNNLayer(MessagePassing):
         self.w_combine_ent_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
         print(f"In weight w_nodes shape={self.w_nodes_to_edges.shape} w_edges shape={self.w_edges_to_nodes.shape}")
         #!!!For Testing Only. Remove it!!!!
-        self.w_rel = get_param((in_channels, out_channels), 1)  
+        #self.w_rel = get_param((in_channels, out_channels), 1)  
 
     
     def forward(self, ent_embed,rel_embed, graph_data,hyperedge_weight=None):
@@ -53,8 +57,8 @@ class GNNLayer(MessagePassing):
         # Step 2: Linearly transform node feature matrix.
         print(f"Before lin transform  ent_embed={ent_embed.shape}")
         
-        ent_embed = self.lin(ent_embed) #??? why its is reqd??
-        rel_embed = self.lin(rel_embed)
+        ent_embed = self.ent_lin(ent_embed) #??? why its is reqd??
+        rel_embed = self.rel_lin(rel_embed)
         print(f"  ")
         print(f"After lin transform ent_embed={ent_embed.shape} rel_embed={rel_embed.shape}")
         edge_embed = rel_embed[edge_type]
@@ -160,7 +164,9 @@ class GNNLayer(MessagePassing):
         #updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
         updated_rel_embed = scatter(updated_edge_embed, edge_type,dim=0, dim_size=num_rels, reduce='mean')
         print(f"Returning from GNN layer  ent_embed device={updated_ent_embed.device} rel embed device = {updated_rel_embed.device}")
-        
+        #updated_ent_embed = self.ent_bn(updated_ent_embed)
+        #updated_rel_embed = self.rel_bn(updated_rel_embed)
+
         return updated_ent_embed, updated_rel_embed
     
     def update_hyperedge_with_nodes(self,edge_embed,obj_embed, weight):
