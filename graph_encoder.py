@@ -57,19 +57,19 @@ class GraphEncoder(torch.nn.Module):
         
         if config.shallow_embed == 0:
             # Why do we need a separate class for encoder? Can it be not part of the GNNLayer itself?
-            self.gnn_layer1 = GNNLayer(self.emb_dim1, self.emb_dim2,self.device)
+            self.gnn_layer1 = GNNLayer(self.emb_dim1, self.emb_dim2,self.device,self.config)
             if self.gnn_layer1: self.gnn_layer1.to(self.device)
 
             #Instead of having multiple layers defined here, can we have a single layer
             #with multiple propagations? But then we'll have only a single set of weights? Is that ok?
-            self.gnn_layer2 = GNNLayer(self.emb_dim2, self.emb_dim1,self.device)
+            self.gnn_layer2 = GNNLayer(self.emb_dim2, self.emb_dim1,self.device,self.config)
             if self.gnn_layer2: self.gnn_layer2.to(self.device)
 
             if(self.num_gnn_layers > 2):
-                self.gnn_layer3 = GNNLayer(self.emb_dim1, self.emb_dim2,self.device)
+                self.gnn_layer3 = GNNLayer(self.emb_dim1, self.emb_dim2,self.device,self.config)
                 if self.gnn_layer3: self.gnn_layer3.to(self.device)
             if(self.num_gnn_layers > 3):
-                self.gnn_layer4 = GNNLayer(self.emb_dim2, self.emb_dim1,self.device)
+                self.gnn_layer4 = GNNLayer(self.emb_dim2, self.emb_dim1,self.device,self.config)
                 if self.gnn_layer4: self.gnn_layer4.to(self.device)
 
 

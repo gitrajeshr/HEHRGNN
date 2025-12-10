@@ -11,23 +11,25 @@ import torch.nn.functional as F
 
 
 class GNNLayer(MessagePassing):
-    def __init__(self, in_channels, out_channels,device):
+    def __init__(self, in_channels, out_channels,device,config):
         super().__init__(aggr='add', flow='source_to_target',node_dim=0)  #node_dim=0??
-        self.ent_lin = Linear(in_channels, out_channels, bias=False)
-        self.rel_lin = Linear(in_channels, out_channels, bias=False)
-        #self.ent_bn = torch.nn.BatchNorm1d(out_channels)
-        #self.rel_bn = torch.nn.BatchNorm1d(out_channels)
-        #self.bias = Parameter(torch.empty(out_channels))
-        self.set_weights(out_channels, out_channels)
+
+      
         self.device= device
+        self.use_bn = config.use_bn
         self.config = {}
         self.config['QUAL_TRANSFORM']  = 'mult' #'sub', 'corr','rotate', '
         self.config['QUALS_AGGREGATE']  = 'sum' #'mean'
         self.config['EDGE_QUALS_AGGREGATE']  = 'sum' #'conact', 'mult'
         self.config['QUALS_WEIGHT'] = 0.2
 
-        
-
+        self.ent_lin = Linear(in_channels, out_channels, bias=False)
+        self.rel_lin = Linear(in_channels, out_channels, bias=False)
+        if self.use_bn:
+            self.ent_bn = torch.nn.BatchNorm1d(out_channels)
+            self.rel_bn = torch.nn.BatchNorm1d(out_channels)
+        #self.bias = Parameter(torch.empty(out_channels))
+        self.set_weights(in_channels, out_channels)
 
     def set_weights(self,in_channels, out_channels):
         self.ent_lin.reset_parameters()
@@ -164,8 +166,9 @@ class GNNLayer(MessagePassing):
         #updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
         updated_rel_embed = scatter(updated_edge_embed, edge_type,dim=0, dim_size=num_rels, reduce='mean')
         print(f"Returning from GNN layer  ent_embed device={updated_ent_embed.device} rel embed device = {updated_rel_embed.device}")
-        #updated_ent_embed = self.ent_bn(updated_ent_embed)
-        #updated_rel_embed = self.rel_bn(updated_rel_embed)
+        if self.use_bn:
+            updated_ent_embed = self.ent_bn(updated_ent_embed)
+            updated_rel_embed = self.rel_bn(updated_rel_embed)
 
         return updated_ent_embed, updated_rel_embed
     

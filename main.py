@@ -44,6 +44,7 @@ if __name__ == "__main__":
     parser.add_argument('-learning_rate', type=float,default=0.001)    #tried 0.0001
 
     parser.add_argument('-drop_prob', type=float,default=0.3)
+    parser.add_argument('-use_bn', type=int, default=0)
 
     parser.add_argument('-device', type=str, default="cuda")
     parser.add_argument('-output_dir', type=str, default="chkpnts")
