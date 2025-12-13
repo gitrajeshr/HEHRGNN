@@ -48,7 +48,9 @@ if __name__ == "__main__":
 
     parser.add_argument('-device', type=str, default="cuda")
     parser.add_argument('-output_dir', type=str, default="chkpnts")
-    parser.add_argument('-run_mode', type=str, default="train")
+    parser.add_argument('-run_mode', type=str, default="train") # train or eval
+    parser.add_argument('-load_model', type=bool, default=False)
+
 
     
 
@@ -62,6 +64,10 @@ if __name__ == "__main__":
     print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nNum ents = {len(dataset.ent2id)} \n Num rels = {len(dataset.rel2id)} \n Num edges = {len(dataset.graph_representation['edge_index'])}")
 
     graph_encoder = GraphEncoder(dataset,config).to(config.device)
+
+    if config.load_model==True:
+        saved_model = os.path.join(config.output_dir, '20251209_201441_wd50k_unified_format_distmult_BCEL_embdim-128_epochs-50_transductive_best_model.chkpnt')
+        graph_encoder.load_model(saved_model)
 
     #Now we have the embeddings for entities as well as relations. How do we evaluate?
     #The encoder decoder should be part of the GraphEncoder in order to optimize
@@ -80,10 +86,9 @@ if __name__ == "__main__":
         trainer = Training(graph_encoder,config)        
         trainer.training_loop(dataset)
     else:
-        saved_model = os.path.join(config.output_dir, '20250804_203904_wd50k_unified_format_hype_BCEL_embdim-100_epochs-100_inductive_best_model.chkpnt')
+      
         evaluator = EvaluatorClass(graph_encoder,dataset,config)
         
-        evaluator.load_model(saved_model)
     
         print(">>>>>>>>>Loaded Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
         for name, param in graph_encoder.named_parameters():

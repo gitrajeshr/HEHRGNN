@@ -86,8 +86,9 @@ class Training():
         else:
             ind_trans= "transductive"
 
-        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_{ind_trans}_training_log.txt")
-        log_file = open(log_file_name, "w")
+        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_edgeEmb-{config.edge_embed}_shalEmb-{config.shallow_embed}_training_log.txt")
+
+        #log_file = open(log_file_name, "w")
         opt = self.optimizer
         train_loss = []
         data_prep = TrainingDataPrep(dataset,config)
@@ -99,6 +100,7 @@ class Training():
             batch_losses = []
             iter_dataset = iter(dataloader)
             for pos_batch in tqdm(iter_dataset):
+                log_file = open(log_file_name, "a")
                 print(f"Epoch No.{epch} Batch No.{batch_counter} ")
                 batch_counter+=1
                 opt.zero_grad()
@@ -137,6 +139,7 @@ class Training():
                 #if grad_clipping:
                 #    torch.nn.utils.clip_grad_norm_(graph_encoder.parameters(), 1.0)
                 opt.step()
+                log_file.close()
 
             # Log this stuff
             epoch_loss = np.mean(batch_losses)
@@ -146,11 +149,12 @@ class Training():
 
             # Evaluate the model every 100th iteration or if it is the last iteration
             if (epch % 1 == 0) or (epch == config.epochs):
+                log_file = open(log_file_name, "a")
                 # with torch.no_grad()
                 # model.eval() # both these setting are done in Eval. No need to do it here
                 metrics = evaluator.evaluate()
                 log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
                 self.save_if_best_model(model,metrics,best_metrics,epch,log_file_name)
-        log_file.close()
+                log_file.close()
 
     

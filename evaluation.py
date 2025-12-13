@@ -38,15 +38,7 @@ class EvaluatorClass():
                 print(f"Hits@10={torch.numel(ranks[ranks <= (k )])} Total ranks={torch.numel(ranks)}")
         return metrics
 
-    def load_model(self,saved_model):
-        self.model.load_state_dict(torch.load(saved_model))
-        print(f" Saved Models is loaded....")
-        if torch.cuda.is_available():
-            allocated_memory_bytes = torch.cuda.memory_allocated()
-            print(f"Memory allocated by tensors: {allocated_memory_bytes / (1024**2):.2f} MB")
-            free_memory_bytes, total_memory_bytes = torch.cuda.mem_get_info()
-            print(f"Free GPU memory: {free_memory_bytes / (1024**2):.2f} MB")
-            print(f"Total GPU memory: {total_memory_bytes / (1024**2):.2f} MB")
+    
     
     def evaluate(self):
         model = self.model

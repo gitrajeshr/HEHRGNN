@@ -17,6 +17,7 @@ class GNNLayer(MessagePassing):
       
         self.device= device
         self.use_bn = config.use_bn
+        self.edge_embed = config.edge_embed
         self.config = {}
         self.config['QUAL_TRANSFORM']  = 'mult' #'sub', 'corr','rotate', '
         self.config['QUALS_AGGREGATE']  = 'sum' #'mean'
@@ -43,7 +44,8 @@ class GNNLayer(MessagePassing):
         self.w_combine_ent_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
         print(f"In weight w_nodes shape={self.w_nodes_to_edges.shape} w_edges shape={self.w_edges_to_nodes.shape}")
         #!!!For Testing Only. Remove it!!!!
-        #self.w_rel = get_param((in_channels, out_channels), 1)  
+        if self.edge_embed==0: 
+            self.w_rel = get_param((in_channels, out_channels), 1)  
 
     
     def forward(self, ent_embed,rel_embed, graph_data,hyperedge_weight=None):
@@ -163,8 +165,10 @@ class GNNLayer(MessagePassing):
 
         #In case of hyper  edges, the relation embeddings have to be updated by propagation from the 
         # neighboring(or member nodes). Need to do it here or Some where else???
-        #updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
-        updated_rel_embed = scatter(updated_edge_embed, edge_type,dim=0, dim_size=num_rels, reduce='mean')
+        if self.edge_embed:        
+            updated_rel_embed = scatter(updated_edge_embed, edge_type,dim=0, dim_size=num_rels, reduce='mean')
+        else:
+            updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
         print(f"Returning from GNN layer  ent_embed device={updated_ent_embed.device} rel embed device = {updated_rel_embed.device}")
         if self.use_bn:
             updated_ent_embed = self.ent_bn(updated_ent_embed)

@@ -30,8 +30,8 @@ class GraphEncoder(torch.nn.Module):
             print(f">>>>>>Its running in Inductive mode>>>")
             #self.init_ent_embed = torch.ones(self.num_ent, self.emb_dim1, device=self.device)
             #self.init_rel_embed = torch.ones(self.num_rel, self.emb_dim1, device=self.device) 
-            self.init_ent_embed = torch.full((self.num_ent, self.emb_dim1),0.5, device=self.device)
-            self.init_rel_embed = torch.full((self.num_rel, self.emb_dim1),0.5, device=self.device) 
+            self.init_ent_embed = torch.full((self.num_ent, self.emb_dim1),0.3, device=self.device)
+            self.init_rel_embed = torch.full((self.num_rel, self.emb_dim1),0.3, device=self.device) 
             print(f"$$$$$ Graph encoder init embedd={self.init_ent_embed} rel embed={self.init_rel_embed}")
 
         """ self.register_buffer('init_ent_embed', torch.randn(self.num_ent, self.emb_dim1))
@@ -92,7 +92,15 @@ class GraphEncoder(torch.nn.Module):
         
         #self.bias = get_param((self.num_ent), 0)
 
-    
+    def load_model(self,saved_model):
+        self.load_state_dict(torch.load(saved_model))
+        print(f" Saved Models is loaded....")
+        if torch.cuda.is_available():
+            allocated_memory_bytes = torch.cuda.memory_allocated()
+            print(f"Memory allocated by tensors: {allocated_memory_bytes / (1024**2):.2f} MB")
+            free_memory_bytes, total_memory_bytes = torch.cuda.mem_get_info()
+            print(f"Free GPU memory: {free_memory_bytes / (1024**2):.2f} MB")
+            print(f"Total GPU memory: {total_memory_bytes / (1024**2):.2f} MB")
    
     def forward(self,graph_data,rel_idx, ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits):
         #Should we make ent_embed abd rel_embed as registered buffers so that they are 
