@@ -29,6 +29,7 @@ class TrainingDataPrep():
         
         if train_or_eval == 1: #1 is eval, 0 is train
             neg_ratio = self.num_ent // 100
+            #neg_ratio = self.num_ent
         else:
             neg_ratio = self.config.neg_ratio
 

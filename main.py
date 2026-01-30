@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser.add_argument('-emb_dim', type=int, default=100)
     parser.add_argument('-inductive', type=int, default=0)
     parser.add_argument('-shallow_embed', type=int, default=0)
-
+    parser.add_argument('-edge_embed', type=int, default=1)
     
     
     #GNN parameters
