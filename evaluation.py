@@ -38,9 +38,16 @@ class EvaluatorClass():
                 print(f"Hits@10={torch.numel(ranks[ranks <= (k )])} Total ranks={torch.numel(ranks)}")
         return metrics
 
-    
-    
     def evaluate(self):
+        if self.config.task == "link_prediction":
+            return self.link_prediction_evaluate()
+        elif self.config.task == "node_classification":
+            return self.node_classification_evaluate()  
+        else:
+            print(f"Invalid task specified for evaluation {self.config.task}")
+            return None
+    
+    def link_prediction_evaluate(self):
         model = self.model
         config = self.config
         dataset = self.dataset
@@ -69,8 +76,18 @@ class EvaluatorClass():
 
                 rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
                 #print(f">>>>>>>.batch={batch[0:2,:config.max_arity+1]}..pres_bits = {pres_bits} abs_bits={abs_bits}")
-
-                predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
+                input_for_pred = {}
+                input_for_pred["r_id"] = rel
+                input_for_pred["e1_id"] = ent1
+                input_for_pred["e2_id"] = ent2
+                input_for_pred["e3_id"] = ent3
+                input_for_pred["e4_id"] = ent4
+                input_for_pred["e5_id"] = ent5
+                input_for_pred["e6_id"] = ent6
+                input_for_pred["pres_bits"] = pres_bits
+                input_for_pred["abs_bits"] = abs_bits
+             
+                predictions = model(dataset.graph_representation,input_for_pred)
                 print(f">>>>>>>predictions ={predictions.shape} total batch size={batch.shape}")
 
 
@@ -86,4 +103,32 @@ class EvaluatorClass():
         print(f" EValuation results {summary_metrics}")
         log_file.write(f"Evaluation Metrics {summary_metrics} \n")
         log_file.close()
+        return summary_metrics
+    
+    def node_classification_evaluate(self):
+        model = self.model
+        config = self.config
+        dataset = self.dataset
+        
+        # dataloader = DataLoader(dataset.data["test"],self.config.batch_size)
+        # iter_dataset = iter(dataloader)
+        accumulated_metrics={}
+        summary_metrics={}
+        batch_counter=0
+        model.eval()
+        with torch.no_grad():
+            #for batch in tqdm(iter_dataset):
+                batch_counter+=1
+                input_for_pred = {}
+                predictions = model(dataset.graph_representation,self.config.task,input_for_pred)
+                predicted_labels = torch.argmax(predictions[dataset.data['test_mask']], dim=1)
+                actual_labels = dataset.data['labels'][dataset.data['test_mask']]
+
+                correct = (predicted_labels == actual_labels).sum().item()
+                total = actual_labels.size(0)
+                accuracy = correct / total
+                accumulated_metrics['accuracy'] = accumulated_metrics.get('accuracy', 0.0) + accuracy
+        
+        summary_metrics['accuracy'] = accumulated_metrics['accuracy'] / float(batch_counter)
+        print(f" EValuation results {summary_metrics}")
         return summary_metrics

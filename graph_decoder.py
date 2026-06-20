@@ -79,8 +79,19 @@ class HypEDecoder(torch.nn.Module):
         x = self.fc(x)
         return x
 
-    def forward(self, ent_embed, rel_embed, r_idx, e1_idx, e2_idx, e3_idx, e4_idx, e5_idx,e6_idx,ms, bs):
+    def forward(self, ent_embed, rel_embed, r_idx, input_for_pred):
         #print(f"####forward propagation{r_idx.shape}....{e1_idx.shape}")
+        r_idx = input_for_pred.r_idx
+        e1_idx = input_for_pred.e1_idx
+        e2_idx = input_for_pred.e2_idx
+        e3_idx = input_for_pred.e3_idx
+        e4_idx = input_for_pred.e4_idx
+        e5_idx = input_for_pred.e5_idx
+        e6_idx = input_for_pred.e6_idx
+        ms = input_for_pred.ms
+        bs = input_for_pred.bs
+
+
         r = rel_embed[r_idx]
         e1 = self.convolve(ent_embed, rel_embed,r_idx, e1_idx, 1) * ms[:,0].view(-1, 1) + bs[:,0].view(-1, 1)
         e2 = self.convolve(ent_embed, rel_embed,r_idx, e2_idx, 2) * ms[:,1].view(-1, 1) + bs[:,1].view(-1, 1)

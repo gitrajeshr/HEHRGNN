@@ -3,6 +3,9 @@ import random
 import numpy as np
 import torch
 
+from torch_geometric.datasets import Planetoid
+
+
 ##Do we really need numpy, if we have tensors in torch?``
 
 
@@ -26,28 +29,33 @@ class InputDataManager():
         # Now the dataset will consist of subsets "train", "valid" and "test"
         self.data = {}
         print("Loading the dataset {} ....".format(self.name))
-        self.data["train"] = self.read(os.path.join(self.dir, "train.txt"))
-        print("Read Train the dataset {} ....".format(self.data["train"].shape))
-        # Load the test data
-        self.data["test"] = self.read(os.path.join(self.dir, "test.txt"))
-        # Read the test files by arity, if they exist
-        # If they do, then test output will be displayed by arity
-        """ for i in range(2,self.max_arity+1):
-            test_arity = "test_{}".format(i)
-            file_path = os.path.join(self.dir, "test_{}.txt".format(i))
-            self.data[test_arity] = self.read_test(file_path) """
+        
+        if self.name in ["cora"]:
+            self.data["graph_data"], self.data["node_features"], self.data["labels"], self.data["train_mask"], self.data["test_mask"], self.data["val_mask"] = self.get_cora_dataset()
+        else:
+            self.data["train"] = self.read(os.path.join(self.dir, "train.txt"))
+            self.data["graph_data"] = self.data["train"] #graph data is same as the training data in this case
+            print("Read Train the dataset {} ....".format(self.data["train"].shape))
+            # Load the test data
+            self.data["test"] = self.read(os.path.join(self.dir, "test.txt"))
+            # Read the test files by arity, if they exist
+            # If they do, then test output will be displayed by arity
+            """ for i in range(2,self.max_arity+1):
+                test_arity = "test_{}".format(i)
+                file_path = os.path.join(self.dir, "test_{}.txt".format(i))
+                self.data[test_arity] = self.read_test(file_path) """
 
-        self.data["valid"] = self.read(os.path.join(self.dir, "valid.txt"))
+            self.data["valid"] = self.read(os.path.join(self.dir, "valid.txt"))
 
 
         #Convert graph data into a representation suitable for GNN/GCN propagation
         
         graph_representation = {}
-        graph_representation["edge_index"], graph_representation["edge_type"], graph_representation["qual_details"]  = self.convert_to_graph_representation_for_msg_passing(self.data["train"])
+        graph_representation["edge_index"], graph_representation["edge_type"], graph_representation["qual_details"]  = self.convert_to_graph_representation_for_msg_passing(self.data["graph_data"])
         self.graph_representation = graph_representation
         self.num_entities = len(self.ent2id)
         self.num_relations = len(self.rel2id)
-        self.num_tuples = len(self.data["train"])
+        self.num_tuples = len(self.data["graph_data"])
         #print(f"Enities2id= {self.ent2id} Rel2id={self.rel2id}")
         print(f"Num tuples = {self.num_tuples}  NUm Entities={self.num_entities}  num_relations={self.num_relations}")
 
@@ -80,8 +88,9 @@ class InputDataManager():
                     break
                 np_hyperedge_index[0].append(ent)
                 np_hyperedge_index[1].append(i)
+                print(f"In for loop i={i} pr_tuple={pr_tuple} index 0 ={np_hyperedge_index[0][-1]} index 1={np_hyperedge_index[1][-1]} ")
 
-            #print(f"In for loop i={i} pr_tuple={pr_tuple} qual_pairs={qual_pairs[i]}")
+
             qual_rel = np.array(qual_pairs[i][::2])
             qual_ent = np.array(qual_pairs[i][1::2])
             non_zero_rels = qual_rel[np.nonzero(qual_rel)]
@@ -178,15 +187,56 @@ class InputDataManager():
         return pr_tuple_id,q_pairs_id
 
     def get_ent_id(self, ent):
+        print(f"Getting ent id for {ent}")
+        ent = str(ent.item()) 
         if not ent in self.ent2id:
-            self.ent2id[ent] = len(self.ent2id)
+            self.ent2id[ent] = len(self.ent2id) 
+            print(f"Assigned id {self.ent2id[ent]} to entity {ent}")
         return self.ent2id[ent]
 
     def get_rel_id(self, rel):
         if not rel in self.rel2id:
             self.rel2id[rel] = len(self.rel2id)
         return self.rel2id[rel]
+
+
+    def get_cora_dataset(self):
+
+        if not os.path.exists('cora_graph.pt'):
+            print("Cora dataset not found. Downloading...")
+            dataset = Planetoid(root='/tmp/Cora', name='Cora')
+            torch.save(dataset, 'cora_graph.pt')
+            print("Dataset successfully saved as cora_graph.pt")
+
+        dataset = torch.load('cora_graph.pt')
+        data = dataset[0]  # Cora contains exactly one graph object
+        # Inspect the dataset properties
+        print(f"Number of graphs: {len(dataset)}")
+        print(f"Data structure: {data}")
+        print(f"Number of nodes: {data.num_nodes}")
+        print(f"Number of edges: {data.num_edges}")
+        print(f"Number of node features: {data.num_node_features}")
+        print(f"Number of classes: {dataset.num_classes}")
+        print(f"Edge index : {data.edge_index}")
+        statements = []
+       
+        #np.random.shuffle(data.edge_index)
+        
+        pr_tuple_id = np.zeros(self.max_arity + 1)
     
- 
+        self.get_rel_id("cora_edge")
+
+        for i in range(data.edge_index.size(1)):  
+            pr_tuple_id[0] = 1  # Assuming a single relation type for Cora
+            pr_tuple_id[1] = self.get_ent_id(data.edge_index[0][i])
+            pr_tuple_id[2] = self.get_ent_id(data.edge_index[1][i])
+            stmt = pr_tuple_id
+            statements.append(stmt) #the complete graph is used for training 
+
+        
+        #print(f"@@@@@@@Convert to graph data shape={statements} ")
+        return np.array(statements,dtype=np.int64),data.x, data.y, data.train_mask, data.test_mask, data.val_mask
+
+
 
 

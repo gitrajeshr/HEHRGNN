@@ -71,8 +71,16 @@ class Training():
      
     
 
-
     def training_loop(self,dataset):
+        if self.config.task == "link_prediction":
+            self.link_prediction_training_loop(dataset)
+        elif self.config.task == "node_classification":
+            self.node_classification_training_loop(dataset)
+        else:
+            print("Unexpected task")
+            raise NotImplementedError
+        
+    def link_prediction_training_loop(self,dataset):
     #Do the training loop
     #convert  dataset to iterable
         config = self.config
@@ -113,8 +121,18 @@ class Training():
 
                 rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
                 print(f">>>>>>>Pos_batch size = {pos_batch.shape} labels shape={labels.shape} positives={torch.numel(labels[labels!=0])}")
-
-                predictions = model(dataset.graph_representation,rel,ent1,ent2,ent3,ent4,ent5,ent6,pres_bits,abs_bits)
+                task = "link_prediction"
+                input_for_pred = {}
+                input_for_pred["r_id"] = rel
+                input_for_pred["e1_id"] = ent1
+                input_for_pred["e2_id"] = ent2
+                input_for_pred["e3_id"] = ent3
+                input_for_pred["e4_id"] = ent4
+                input_for_pred["e5_id"] = ent5
+                input_for_pred["e6_id"] = ent6
+                input_for_pred["pres_bits"] = pres_bits
+                input_for_pred["abs_bits"] = abs_bits
+                predictions = model(dataset.graph_representation,task,input_for_pred)
                 print(f"IN training predictions shape={predictions.shape}")
                 #predictions is the score for all samples in the batch, +ve as well the corresponding -ves. 
                 #Predictions is of shape(bs,1)
@@ -152,9 +170,67 @@ class Training():
                 log_file = open(log_file_name, "a")
                 # with torch.no_grad()
                 # model.eval() # both these setting are done in Eval. No need to do it here
+                ##!!!We cannot directly use the embeddings generated during the last training
+                # iteration and instead need to do a fresh forward pass for evaluation because 
+                # the weights have been updated in the last training iteration 
                 metrics = evaluator.evaluate()
                 log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
                 self.save_if_best_model(model,metrics,best_metrics,epch,log_file_name)
                 log_file.close()
+
+    def node_classification_training_loop(self,dataset):
+    
+        config = self.config
+        model = self.model
+        # training_nodes_mask = dataset.data["nodes"]
+        # #print(f">>>>>>>>original dataset = {train_data}")
+        # dataloader = DataLoader(train_data,config.batch_size)  
+        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_edgeEmb-{config.edge_embed}_shalEmb-{config.shallow_embed}_training_log.txt")
+        opt = self.optimizer
+        train_loss = []
+        best_metrics={}
+        evaluator = EvaluatorClass(model,dataset,config)
+
+        for epch in range(config.epochs):
+            model.train()
+            batch_counter=0
+            batch_losses = []
+            opt.zero_grad()
+            log_file = open(log_file_name, "a")
+            # The model processes EVERY node and edge in the graph
+            task = "node_classification"
+            input_for_pred = {}
+            input_for_pred["train_mask"] = dataset.data["train_mask"]
+            input_for_pred["val_mask"] = dataset.data["val_mask"]
+            input_for_pred["test_mask"] = dataset.data["test_mask"]
+            input_for_pred["labels"] = dataset.data["labels"]
+            
+            predictions = model(dataset.graph_representation,task,input_for_pred)
+            print(f"IN loss predictions shape={predictions[dataset.data['train_mask']].shape} labels shape={dataset.data['labels'].shape} label shape={dataset.data['labels'][dataset.data['train_mask']].shape}")
+
+            # CRITICAL: Loss is ONLY calculated using the training mask labels
+            loss = self.loss_layer(predictions[dataset.data["train_mask"]], dataset.data["labels"][dataset.data["train_mask"]])
+            batch_losses.append(loss.item())
+            print(f">>>>>>>Batch Loss...{loss}")
+            log_file.write(f"Epoch {epch} Batch {batch_counter} Loss: {loss} \n")
+            loss.backward()
+            self.optimizer.step()
+
+            # Log this stuff
+            epoch_loss = np.mean(batch_losses)
+            print(f"[Epoch: {epch} ] Loss: {epoch_loss} Batch Losses={batch_losses}")
+            # train_acc.append(np.mean(per_epoch_tr_acc))
+            train_loss.append(epoch_loss)
+
+            #Evaluate the model every 100th iteration or if it is the last iteration
+            if (epch % 1 == 0) or (epch == config.epochs):
+                log_file = open(log_file_name, "a")
+                # with torch.no_grad()
+                # model.eval() # both these setting are done in Eval. No need to do it here
+                metrics = evaluator.evaluate()
+                log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
+                # self.save_if_best_model(model,metrics,best_metrics,epch,log_file_name)
+                log_file.close()
+
 
     

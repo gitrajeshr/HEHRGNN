@@ -36,10 +36,10 @@ class GNNLayer(MessagePassing):
         self.ent_lin.reset_parameters()
         self.rel_lin.reset_parameters()
         #self.bias.data.zero_()
-        self.w_quals_to_edges= get_param((in_channels, out_channels), 1)
-        self.w_nodes_to_edges = get_param((in_channels, in_channels),1)  
-        self.w_edges_to_nodes = get_param((in_channels, out_channels),1)  
-        self.w_edges_to_quals = get_param((in_channels, out_channels),1)  
+        self.w_quals_to_edges= get_param((out_channels, out_channels), 1)
+        self.w_nodes_to_edges = get_param((out_channels, out_channels),1)  
+        self.w_edges_to_nodes = get_param((out_channels, out_channels),1)  
+        self.w_edges_to_quals = get_param((out_channels, out_channels),1)  
         self.w_combine_edge_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
         self.w_combine_ent_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
         print(f"In weight w_nodes shape={self.w_nodes_to_edges.shape} w_edges shape={self.w_edges_to_nodes.shape}")
@@ -137,7 +137,7 @@ class GNNLayer(MessagePassing):
 
         #print(f"QQQQQQ>>>>qual_details = {qual_details.shape} qual edge index = {qual_edge_index.shape}")
         qual_edge_embed = rel_embed[qual_details[0]]
-        #print(f"010101 Ent embed = {ent_embed}")
+        print(f"010101 Ent embed = {ent_embed.shape} rel embed = {rel_embed.shape} qual edge embed = {qual_edge_embed.shape} edge_embed = {edge_embed.shape} weight ={self.w_quals_to_edges.shape}")
         msg_type = 1
         propagated_edge_msg1 = self.propagate(qual_edge_index,size=(num_nodes,num_edges),x=(ent_embed,edge_embed),msg_type=msg_type, norm=norm_qual_to_edge,qual_edge_embed=qual_edge_embed,  weight=self.w_quals_to_edges)
         #2 - nodes to hyperedge
