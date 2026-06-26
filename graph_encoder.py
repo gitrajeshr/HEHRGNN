@@ -37,6 +37,7 @@ class GraphEncoder(torch.nn.Module):
                 self.emb_dims[0]= dataset.data["node_features"].shape[1]
                 self.init_ent_embed = dataset.data["node_features"].to(self.device)
             else:
+                print(f">>>>>>Not using node features num_ent={self.num_ent} emb_dims[0]={self.emb_dims[0]}")
                 self.init_ent_embed = get_param((self.num_ent, self.emb_dims[0]), 1) 
 
             self.init_rel_embed = get_param((self.num_rel, self.emb_dims[0]), 1)
@@ -76,7 +77,7 @@ class GraphEncoder(torch.nn.Module):
             # Why do we need a separate class for encoder? Can it be not part of the GNNLayer itself?
             self.gnn_layer1 = GNNLayer(self.emb_dims[0], self.emb_dims[1],self.device,self.config)
             if self.gnn_layer1: self.gnn_layer1.to(self.device)
-
+            self.relu1 = torch.nn.ReLU()
             #Instead of having multiple layers defined here, can we have a single layer
             #with multiple propagations? But then we'll have only a single set of weights? Is that ok?
             self.gnn_layer2 = GNNLayer(self.emb_dims[1], self.emb_dims[2],self.device,self.config)
@@ -132,8 +133,10 @@ class GraphEncoder(torch.nn.Module):
             #print(f"Xavier inited embed={self.init_ent_embed} rel embed={self.init_rel_embed}")
             ent_embed, rel_embed = self.gnn_layer1(self.init_ent_embed,self.init_rel_embed,graph_data)
             #drop reqd?
+            ent_embed = self.relu1(ent_embed)
             ent_embed = self.hidden_drop1(ent_embed)
-            #self.rel_embed = drop1(self.rel_embed)
+            rel_embed = self.hidden_drop1(rel_embed)
+
             ent_embed, rel_embed = self.gnn_layer2(ent_embed,rel_embed,graph_data)
             #Should the Dropout be moved inside the if condition for num_gnn_layers? 
             # f num_gnn_layers is 1, then we should not have the hidden_drop2 layer in use. Hence it should be inside the if condition for num_gnn_layers>1

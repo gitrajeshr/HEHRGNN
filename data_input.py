@@ -19,8 +19,8 @@ class InputDataManager():
         self.max_q_pairs = args.max_q_pairs
 
         # id zero means no entity. Entity ids start from 1.
-        self.ent2id = {"":0}
-        self.rel2id = {"":0}
+        self.ent2id = {}
+        self.rel2id = {}
         # The unified data structure  for holding both types of complex facts - 
         # hyper-relational and n-ary
         #
@@ -88,8 +88,6 @@ class InputDataManager():
                     break
                 np_hyperedge_index[0].append(ent)
                 np_hyperedge_index[1].append(i)
-                print(f"In for loop i={i} pr_tuple={pr_tuple} index 0 ={np_hyperedge_index[0][-1]} index 1={np_hyperedge_index[1][-1]} ")
-
 
             qual_rel = np.array(qual_pairs[i][::2])
             qual_ent = np.array(qual_pairs[i][1::2])
@@ -187,11 +185,11 @@ class InputDataManager():
         return pr_tuple_id,q_pairs_id
 
     def get_ent_id(self, ent):
-        print(f"Getting ent id for {ent}")
+        #print(f"Getting ent id for {ent}")
         ent = str(ent.item()) 
         if not ent in self.ent2id:
             self.ent2id[ent] = len(self.ent2id) 
-            print(f"Assigned id {self.ent2id[ent]} to entity {ent}")
+            #print(f"Assigned id {self.ent2id[ent]} to entity {ent}")
         return self.ent2id[ent]
 
     def get_rel_id(self, rel):
@@ -199,6 +197,46 @@ class InputDataManager():
             self.rel2id[rel] = len(self.rel2id)
         return self.rel2id[rel]
 
+    def convert_to_hypergraph(self,data):
+
+        max_arity = 1
+
+        num_hyperedges = data.x.shape[0]
+        #num_hyperedges = 20
+
+        for n in range(data.x.shape[0]):
+            #print(f"Node {n} features {data.x[n]}")
+            self.get_ent_id(torch.tensor(n))
+        for n in range(num_hyperedges):
+            i=1
+            for e in data.edge_index.t():
+                #print(f"Edge {e} from node {e[0]} to node {e[1]}")
+                if e[0] == n or e[1] == n:
+                    i+=1
+            #print(f"counting Hyperedge Arity with Node {n} as the Centre current arity={i} max arity={max_arity}")
+            max_arity = max(max_arity, i)
+
+        print(f"Max arity in the graph is {max_arity}")
+        hypergraph_statements = []
+        self.max_arity = max_arity
+        for n in range(num_hyperedges):
+            #print(f"Creating Hyperedge with Node {n} as the Centre max arity={self.max_arity} max_q_pairs={self.max_q_pairs}")
+            hyper_stmt = np.zeros(self.max_arity + 1)
+            i=0
+            hyper_stmt[i]= 0
+            hyper_stmt[1] = n
+            i+=2
+            for e in data.edge_index.t():
+                #print(f"Edge {e} from node {e[0]} to node {e[1]}")
+                if e[0] == n:
+                    hyper_stmt[i] = self.get_ent_id(e[1])
+                    i+=1
+                elif e[1] == n:
+                    hyper_stmt[i] = self.get_ent_id(e[0])
+                    i+=1
+            hypergraph_statements.append(hyper_stmt)
+
+        return np.array(hypergraph_statements, dtype=np.int64)
 
     def get_cora_dataset(self):
 
@@ -226,17 +264,19 @@ class InputDataManager():
     
         self.get_rel_id("cora_edge")
 
-        for i in range(data.edge_index.size(1)):  
-            pr_tuple_id[0] = 1  # Assuming a single relation type for Cora
-            pr_tuple_id[1] = self.get_ent_id(data.edge_index[0][i])
-            pr_tuple_id[2] = self.get_ent_id(data.edge_index[1][i])
-            stmt = pr_tuple_id
-            statements.append(stmt) #the complete graph is used for training 
+        # for i in range(data.edge_index.size(1)):  
+        #     pr_tuple_id[0] = 1  # Assuming a single relation type for Cora
+        #     pr_tuple_id[1] = self.get_ent_id(data.edge_index[0][i])
+        #     pr_tuple_id[2] = self.get_ent_id(data.edge_index[1][i])
+        #     stmt = pr_tuple_id
+        #     statements.append(stmt) #the complete graph is used for training 
 
         
-        #print(f"@@@@@@@Convert to graph data shape={statements} ")
-        return np.array(statements,dtype=np.int64),data.x, data.y, data.train_mask, data.test_mask, data.val_mask
+        hypergraph_statements = self.convert_to_hypergraph(data)
 
+        #print(f"@@@@@@@Convert to graph data shape={statements} ")
+        return np.array(hypergraph_statements,dtype=np.int64),data.x.to(self.device), data.y.to(self.device), data.train_mask.to(self.device), data.test_mask.to(self.device), data.val_mask.to(self.device)
+        #return torch.from_numpy(hypergraph_statements).to('cuda'),data.x.to(self.device), data.y.to(self.device), data.train_mask.to(self.device), data.test_mask.to(self.device), data.val_mask.to(self.device)
 
 
 

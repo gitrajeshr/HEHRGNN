@@ -42,24 +42,35 @@ class Training():
         return loss_layer, optimizer
    
 
-    def save_if_best_model(self,model,metrics,best_metrics, epch,log_filename):
+    def save_if_best_model(self,model,config,metrics,best_metrics, epch,log_filename):
         
             # This is the best model we have so far if
             # no "best_model" exists yes, or if this MRR is better than what we had before
-            is_best_model = (best_metrics.get("mrr") is None ) or (metrics["mrr"] > best_metrics["mrr"])
-            if is_best_model:
-                self.best_model = self.model
-                # Update the best_mrr value
-                best_metrics["mrr"] = metrics["mrr"]
-                for k in [1, 3, 5, 10]:
-                    best_metrics['hits_at {}'.format(k )] = metrics['hits_at {}'.format(k )]
-                 
+            if config.task == "link_prediction":
+
+                is_best_model = (best_metrics.get("mrr") is None ) or (metrics["mrr"] > best_metrics["mrr"])
+                if is_best_model:
+                    self.best_model = self.model
+                    # Update the best_mrr value
+                    best_metrics["mrr"] = metrics["mrr"]
+                    for k in [1, 3, 5, 10]:
+                        best_metrics['hits_at {}'.format(k )] = metrics['hits_at {}'.format(k )]
+            else:
+                is_best_model = (best_metrics.get("accuracy") is None ) or (metrics["accuracy"] > best_metrics["accuracy"])
+                print(f"Best accuracy so far={best_metrics.get('accuracy')} Current accuracy={metrics['accuracy']}")
+                if is_best_model:
+                    print(f"New best accuracy: {metrics['accuracy']}")
+                    self.best_model = self.model
+                    # Update the best_mrr value
+                    best_metrics["accuracy"] = metrics["accuracy"]
                 
             # Save the model at checkpoint
             model_details_str = log_filename.rsplit("/", 1)[-1][:-len("_training_log.txt")]
             if is_best_model:
                 saved_model_name = model_details_str+'_best_model.chkpnt' 
                 torch.save(model.state_dict(), os.path.join(self.config.output_dir, saved_model_name))
+                self.saved_best_model = saved_model_name
+
                 print(f"######## Saving the BEST MODEL in path {saved_model_name}")
             if (epch % 10 == 0):
                 saved_model_name = model_details_str+'_epch_{}_model.chkpnt'.format(epch)
@@ -173,9 +184,9 @@ class Training():
                 ##!!!We cannot directly use the embeddings generated during the last training
                 # iteration and instead need to do a fresh forward pass for evaluation because 
                 # the weights have been updated in the last training iteration 
-                metrics = evaluator.evaluate()
+                metrics = evaluator.evaluate(split="val")
                 log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
-                self.save_if_best_model(model,metrics,best_metrics,epch,log_file_name)
+                self.save_if_best_model(model,config,metrics,best_metrics,epch,log_file_name)
                 log_file.close()
 
     def node_classification_training_loop(self,dataset):
@@ -206,7 +217,8 @@ class Training():
             input_for_pred["labels"] = dataset.data["labels"]
             
             predictions = model(dataset.graph_representation,task,input_for_pred)
-            print(f"IN loss predictions shape={predictions[dataset.data['train_mask']].shape} labels shape={dataset.data['labels'].shape} label shape={dataset.data['labels'][dataset.data['train_mask']].shape}")
+            print(f"0000000IN loss predictions shape={predictions.shape} train_mask shape={dataset.data['train_mask'].shape} ")
+            #print(f"IN loss predictions shape={predictions[dataset.data['train_mask']].shape} labels shape={dataset.data['labels'].shape} label shape={dataset.data['labels'][dataset.data['train_mask']].shape}")
 
             # CRITICAL: Loss is ONLY calculated using the training mask labels
             loss = self.loss_layer(predictions[dataset.data["train_mask"]], dataset.data["labels"][dataset.data["train_mask"]])
@@ -224,13 +236,23 @@ class Training():
 
             #Evaluate the model every 100th iteration or if it is the last iteration
             if (epch % 1 == 0) or (epch == config.epochs):
-                log_file = open(log_file_name, "a")
+                #log_file = open(log_file_name, "a")
                 # with torch.no_grad()
                 # model.eval() # both these setting are done in Eval. No need to do it here
-                metrics = evaluator.evaluate()
+                metrics = evaluator.evaluate(split="val")
                 log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
-                # self.save_if_best_model(model,metrics,best_metrics,epch,log_file_name)
-                log_file.close()
+                self.save_if_best_model(model,config,metrics,best_metrics,epch,log_file_name)
+            log_file.close()
+        #load best chkpnt and do final evaluation on test set
+        #final test evaluation with the best model
+        self.model.load_state_dict(torch.load(os.path.join(self.config.output_dir, self.saved_best_model)))
+
+
+        log_file = open(log_file_name, "a")
+        metrics = evaluator.evaluate(split="test")
+        log_file.write(f"Hyper parameters: {config} \n")
+        log_file.write(f"Final test Evaluation Metrics {metrics} \n")
+        log_file.close()
 
 
     

@@ -38,21 +38,21 @@ class EvaluatorClass():
                 print(f"Hits@10={torch.numel(ranks[ranks <= (k )])} Total ranks={torch.numel(ranks)}")
         return metrics
 
-    def evaluate(self):
+    def evaluate(self,split="test"):
         if self.config.task == "link_prediction":
-            return self.link_prediction_evaluate()
+            return self.link_prediction_evaluate(split)
         elif self.config.task == "node_classification":
-            return self.node_classification_evaluate()  
+            return self.node_classification_evaluate(split)  
         else:
             print(f"Invalid task specified for evaluation {self.config.task}")
             return None
     
-    def link_prediction_evaluate(self):
+    def link_prediction_evaluate(self, split):
         model = self.model
         config = self.config
         dataset = self.dataset
         
-        dataloader = DataLoader(dataset.data["test"],self.config.batch_size)
+        dataloader = DataLoader(dataset.data[split],self.config.batch_size)
         iter_dataset = iter(dataloader)
         accumulated_metrics={}
         summary_metrics={}
@@ -105,7 +105,7 @@ class EvaluatorClass():
         log_file.close()
         return summary_metrics
     
-    def node_classification_evaluate(self):
+    def node_classification_evaluate(self,split):
         model = self.model
         config = self.config
         dataset = self.dataset
@@ -116,14 +116,18 @@ class EvaluatorClass():
         summary_metrics={}
         batch_counter=0
         model.eval()
+        print(f">>>>>>>>>>>>>>Node classification Evaluation on split {split} with mask sum {dataset.data[split+'_mask'].sum().item()} nodes")
+        val_data_mask = dataset.data[split+'_mask']
         with torch.no_grad():
             #for batch in tqdm(iter_dataset):
                 batch_counter+=1
                 input_for_pred = {}
                 predictions = model(dataset.graph_representation,self.config.task,input_for_pred)
-                predicted_labels = torch.argmax(predictions[dataset.data['test_mask']], dim=1)
-                actual_labels = dataset.data['labels'][dataset.data['test_mask']]
-
+                predicted_labels = torch.argmax(predictions[val_data_mask], dim=1)
+                actual_labels = dataset.data['labels'][val_data_mask]
+                for i in range(10):
+                    print(f"prediction={predictions[val_data_mask][i]} predicted_label={predicted_labels[i]} actual_label={actual_labels[i]}")
+                #print(f"<<<<<<<<<Predicted labels {predicted_labels.shape} {predicted_labels} \n actual labels {actual_labels.shape} \n {actual_labels} predictions {predictions.shape} {predictions} ")
                 correct = (predicted_labels == actual_labels).sum().item()
                 total = actual_labels.size(0)
                 accuracy = correct / total

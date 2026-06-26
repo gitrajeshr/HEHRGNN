@@ -64,7 +64,7 @@ class GNNLayer(MessagePassing):
         ent_embed = self.ent_lin(ent_embed) #??? why its is reqd??
         rel_embed = self.rel_lin(rel_embed)
         print(f"  ")
-        print(f"After lin transform ent_embed={ent_embed.shape} rel_embed={rel_embed.shape}")
+        print(f"After lin transform ent_embed={ent_embed.shape} rel_embed={rel_embed.shape} edge_type={edge_type.shape} ")
         edge_embed = rel_embed[edge_type]
         #edge_embed = torch.zeros_like(rel_embed[edge_type])
         #ent_embed = torch.ones_like(ent_embed)
@@ -102,7 +102,7 @@ class GNNLayer(MessagePassing):
         norm_node_to_edge = B #edge_degree
        
         #  C -> primary node degrees
-
+        print(f"Hyperedge index shape = {hyperedge_index.shape} hyperedge_weight shape = {hyperedge_weight.shape} num_nodes={num_nodes}")
         C = scatter(hyperedge_weight[hyperedge_index[1]], hyperedge_index[0],
                     dim=0, dim_size=num_nodes, reduce='sum')
         C = 1.0 / C

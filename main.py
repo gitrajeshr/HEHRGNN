@@ -46,10 +46,10 @@ if __name__ == "__main__":
     parser.add_argument('-drop_prob', type=float,default=0.3)
     parser.add_argument('-use_bn', type=int, default=0)
 
-    parser.add_argument('-device', type=str, default="cpu")
+    parser.add_argument('-device', type=str, default="cuda")
     parser.add_argument('-output_dir', type=str, default="chkpnts")
     parser.add_argument('-run_mode', type=str, default="train") # train or eval
-    parser.add_argument('-load_model', type=bool, default=False)
+    parser.add_argument('-load_model', type=str, default="")
     parser.add_argument('-task', type=str, default="node_classification")   #link_prediction or node_classification
 
 
@@ -71,8 +71,8 @@ if __name__ == "__main__":
 
     graph_encoder = GraphEncoder(dataset,config).to(config.device)
 
-    if config.load_model==True:
-        saved_model = os.path.join(config.output_dir, '20251209_201441_wd50k_unified_format_distmult_BCEL_embdim-128_epochs-50_transductive_best_model.chkpnt')
+    if config.load_model !="":
+        saved_model = os.path.join(config.output_dir, config.load_model)
         graph_encoder.load_model(saved_model)
 
     #Now we have the embeddings for entities as well as relations. How do we evaluate?
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     for name, param in graph_encoder.named_parameters():
         if param.requires_grad:
             print(f"name={name}, param.data = {param.shape}")
-   
+
     if (config.run_mode=="train"):
         trainer = Training(graph_encoder,config)        
         trainer.training_loop(dataset)
