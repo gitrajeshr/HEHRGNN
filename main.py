@@ -1,5 +1,6 @@
 import argparse
 import os
+from datetime import datetime
 
 
 from graph_encoder import GraphEncoder
@@ -91,17 +92,25 @@ if __name__ == "__main__":
     if (config.run_mode=="train"):
         trainer = Training(graph_encoder,config)        
         trainer.training_loop(dataset)
-    else:
-      
-        evaluator = EvaluatorClass(graph_encoder,dataset,config)
-        
     
-        print(">>>>>>>>>Loaded Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
-        for name, param in graph_encoder.named_parameters():
-            if param.requires_grad:
-                print(f"name={name}, param.data = {param.shape}")
+      
+    
+    # Final testing of the model - after training or loading a pre-trained model
+    #log_file_name = os.path.join(config.output_dir, f"{config.dataset}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_edgeEmb-{config.edge_embed}_shalEmb-{config.shallow_embed}_test_log.txt")  
+    log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_edgeEmb-{config.edge_embed}_shalEmb-{config.shallow_embed}_test_log.txt")
 
-        metrics = evaluator.evaluate()     
+    print(">>>>>>>>>Loaded Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
+    for name, param in graph_encoder.named_parameters():
+        if param.requires_grad:
+            print(f"name={name}, param.data = {param.shape}")
+
    
-   
+    evaluator = EvaluatorClass(graph_encoder,dataset,config)
+
+
+    log_file = open(log_file_name, "a")
+    metrics = evaluator.evaluate(split="test")
+    log_file.write(f"Hyper parameters: {config} \n")
+    log_file.write(f"Final test Evaluation Metrics {metrics} \n")
+    log_file.close()
 

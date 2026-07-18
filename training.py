@@ -248,11 +248,6 @@ class Training():
         self.model.load_state_dict(torch.load(os.path.join(self.config.output_dir, self.saved_best_model)))
 
 
-        log_file = open(log_file_name, "a")
-        metrics = evaluator.evaluate(split="test")
-        log_file.write(f"Hyper parameters: {config} \n")
-        log_file.write(f"Final test Evaluation Metrics {metrics} \n")
-        log_file.close()
 
 
     

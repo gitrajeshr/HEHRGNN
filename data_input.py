@@ -30,8 +30,8 @@ class InputDataManager():
         self.data = {}
         print("Loading the dataset {} ....".format(self.name))
         
-        if self.name in ["cora"]:
-            self.data["graph_data"], self.data["node_features"], self.data["labels"], self.data["train_mask"], self.data["test_mask"], self.data["val_mask"] = self.get_cora_dataset()
+        if self.name in ["cora", "citeseer", "pubmed"]:
+            self.data["graph_data"], self.data["node_features"], self.data["labels"], self.data["train_mask"], self.data["test_mask"], self.data["val_mask"] = self.get_citation_dataset(self.name)
         else:
             self.data["train"] = self.read(os.path.join(self.dir, "train.txt"))
             self.data["graph_data"] = self.data["train"] #graph data is same as the training data in this case
@@ -94,7 +94,7 @@ class InputDataManager():
             non_zero_rels = qual_rel[np.nonzero(qual_rel)]
             non_zero_ents = qual_ent[np.nonzero(qual_ent)]
             if len(non_zero_ents) > 0:
-                #print(f"Non zero quals num={len(non_zero_ents)}")
+                print(f"tuple {i}: qual_rel= {non_zero_rels} Non zero quals non_zero_ents= {non_zero_ents} num={len(non_zero_ents)} non_zero_ents.shape[0]={non_zero_ents.shape[0]} non_zero_rels.shape[0]={non_zero_rels.shape[0]} ")
                 for j in range(non_zero_ents.shape[0]):
                     qualifier_rel.append(non_zero_rels[j])
                     qualifier_ent.append(non_zero_ents[j])
@@ -186,7 +186,8 @@ class InputDataManager():
 
     def get_ent_id(self, ent):
         #print(f"Getting ent id for {ent}")
-        ent = str(ent.item()) 
+        if not isinstance(ent, str):
+            ent = str(ent.item()) 
         if not ent in self.ent2id:
             self.ent2id[ent] = len(self.ent2id) 
             #print(f"Assigned id {self.ent2id[ent]} to entity {ent}")
@@ -202,7 +203,7 @@ class InputDataManager():
         max_arity = 1
 
         num_hyperedges = data.x.shape[0]
-        #num_hyperedges = 20
+        #num_hyperedges = 10
 
         for n in range(data.x.shape[0]):
             #print(f"Node {n} features {data.x[n]}")
@@ -238,15 +239,15 @@ class InputDataManager():
 
         return np.array(hypergraph_statements, dtype=np.int64)
 
-    def get_cora_dataset(self):
+    def get_citation_dataset(self,dataset_name=None):
 
-        if not os.path.exists('cora_graph.pt'):
-            print("Cora dataset not found. Downloading...")
-            dataset = Planetoid(root='/tmp/Cora', name='Cora')
-            torch.save(dataset, 'cora_graph.pt')
-            print("Dataset successfully saved as cora_graph.pt")
+        if not os.path.exists(f'{dataset_name}_graph.pt'):
+            print(f"{dataset_name} dataset not found. Downloading...")
+            dataset = Planetoid(root=f'/tmp/{dataset_name}', name=dataset_name)
+            torch.save(dataset, f'{dataset_name}_graph.pt')
+            print(f"Dataset successfully saved as {dataset_name}_graph.pt")
 
-        dataset = torch.load('cora_graph.pt')
+        dataset = torch.load(f'{dataset_name}_graph.pt')
         data = dataset[0]  # Cora contains exactly one graph object
         # Inspect the dataset properties
         print(f"Number of graphs: {len(dataset)}")
@@ -262,7 +263,7 @@ class InputDataManager():
         
         pr_tuple_id = np.zeros(self.max_arity + 1)
     
-        self.get_rel_id("cora_edge")
+        self.get_rel_id("dafault_edge")
 
         # for i in range(data.edge_index.size(1)):  
         #     pr_tuple_id[0] = 1  # Assuming a single relation type for Cora
