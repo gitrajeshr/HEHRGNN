@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('-output_dir', type=str, default="chkpnts")
     parser.add_argument('-run_mode', type=str, default="train") # train or eval
     parser.add_argument('-load_model', type=str, default="")
-    parser.add_argument('-task', type=str, default="node_classification")   #link_prediction or node_classification
+    parser.add_argument('-task', type=str, default="link_prediction")   #link_prediction or node_classification
 
 
     

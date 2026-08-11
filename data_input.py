@@ -33,6 +33,7 @@ class InputDataManager():
         if self.name in ["cora", "citeseer", "pubmed"]:
             self.data["graph_data"], self.data["node_features"], self.data["labels"], self.data["train_mask"], self.data["test_mask"], self.data["val_mask"] = self.get_citation_dataset(self.name)
         else:
+            self.data["node_features"] = None
             self.data["train"] = self.read(os.path.join(self.dir, "train.txt"))
             self.data["graph_data"] = self.data["train"] #graph data is same as the training data in this case
             print("Read Train the dataset {} ....".format(self.data["train"].shape))
@@ -94,7 +95,7 @@ class InputDataManager():
             non_zero_rels = qual_rel[np.nonzero(qual_rel)]
             non_zero_ents = qual_ent[np.nonzero(qual_ent)]
             if len(non_zero_ents) > 0:
-                print(f"tuple {i}: qual_rel= {non_zero_rels} Non zero quals non_zero_ents= {non_zero_ents} num={len(non_zero_ents)} non_zero_ents.shape[0]={non_zero_ents.shape[0]} non_zero_rels.shape[0]={non_zero_rels.shape[0]} ")
+                print(f"tuple {i}: qual_rel= {qual_rel} qual_ent={qual_ent} non_zero_rels={non_zero_rels} non_zero_ents={non_zero_ents}")
                 for j in range(non_zero_ents.shape[0]):
                     qualifier_rel.append(non_zero_rels[j])
                     qualifier_ent.append(non_zero_ents[j])
