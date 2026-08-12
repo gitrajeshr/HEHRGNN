@@ -19,8 +19,8 @@ class InputDataManager():
         self.max_q_pairs = args.max_q_pairs
 
         # id zero means no entity. Entity ids start from 1.
-        self.ent2id = {}
-        self.rel2id = {}
+        self.ent2id = {"":0}
+        self.rel2id = {"":0}
         # The unified data structure  for holding both types of complex facts - 
         # hyper-relational and n-ary
         #

@@ -87,7 +87,7 @@ class EvaluatorClass():
                 input_for_pred["pres_bits"] = pres_bits
                 input_for_pred["abs_bits"] = abs_bits
              
-                predictions = model(dataset.graph_representation,input_for_pred)
+                predictions = model(dataset.graph_representation,self.config.task,input_for_pred)
                 print(f">>>>>>>predictions ={predictions.shape} total batch size={batch.shape}")
 
 

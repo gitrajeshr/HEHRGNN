@@ -96,6 +96,7 @@ class Training():
     #convert  dataset to iterable
         config = self.config
         model = self.model
+        task = self.config.task
         train_data = dataset.data["train"]
         #print(f">>>>>>>>original dataset = {train_data}")
         dataloader = DataLoader(train_data,config.batch_size)    
@@ -132,7 +133,6 @@ class Training():
 
                 rel, ent1, ent2, ent3, ent4, ent5, ent6,labels = batch[:,0], batch[:,1],batch[:,2],batch[:,3],batch[:,4],batch[:,5],batch[:,6],batch[:,-1]
                 print(f">>>>>>>Pos_batch size = {pos_batch.shape} labels shape={labels.shape} positives={torch.numel(labels[labels!=0])}")
-                task = "link_prediction"
                 input_for_pred = {}
                 input_for_pred["r_id"] = rel
                 input_for_pred["e1_id"] = ent1
@@ -184,7 +184,7 @@ class Training():
                 ##!!!We cannot directly use the embeddings generated during the last training
                 # iteration and instead need to do a fresh forward pass for evaluation because 
                 # the weights have been updated in the last training iteration 
-                metrics = evaluator.evaluate(split="val")
+                metrics = evaluator.evaluate(split="test")
                 log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
                 self.save_if_best_model(model,config,metrics,best_metrics,epch,log_file_name)
                 log_file.close()
@@ -193,6 +193,8 @@ class Training():
     
         config = self.config
         model = self.model
+        task = self.config.task
+
         # training_nodes_mask = dataset.data["nodes"]
         # #print(f">>>>>>>>original dataset = {train_data}")
         # dataloader = DataLoader(train_data,config.batch_size)  
@@ -209,7 +211,6 @@ class Training():
             opt.zero_grad()
             log_file = open(log_file_name, "a")
             # The model processes EVERY node and edge in the graph
-            task = "node_classification"
             input_for_pred = {}
             input_for_pred["train_mask"] = dataset.data["train_mask"]
             input_for_pred["val_mask"] = dataset.data["val_mask"]

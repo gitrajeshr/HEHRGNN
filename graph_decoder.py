@@ -79,7 +79,7 @@ class HypEDecoder(torch.nn.Module):
         x = self.fc(x)
         return x
 
-    def forward(self, ent_embed, rel_embed, r_idx, input_for_pred):
+    def forward(self, ent_embed, rel_embed, input_for_pred):
         #print(f"####forward propagation{r_idx.shape}....{e1_idx.shape}")
         r_idx = input_for_pred.r_idx
         e1_idx = input_for_pred.e1_idx
@@ -119,9 +119,22 @@ class DistMultDecoder(torch.nn.Module):
             #self.bias = get_param((self.num_ent), 0) 
             #self.register_parameter('bias', Parameter(torch.zeros(self.num_ent)))
 
-        def forward(self, ent_embed, rel_embed,r_idx, e1_idx, e2_idx, e3_idx, e4_idx,e5_idx, e6_idx, ms, bs):
+        def forward(self, ent_embed, rel_embed,input_for_pred):
             #sub_emb = torch.index_select(ent_embed, 0, sub)
             #rel_emb = torch.index_select(rel_embed, 0, rel)
+            r_idx = input_for_pred["r_id"]
+            e1_idx = input_for_pred["e1_id"]
+            e2_idx = input_for_pred["e2_id"]
+            e3_idx = input_for_pred["e3_id"]
+            e4_idx = input_for_pred["e4_id"]
+            e5_idx = input_for_pred["e5_id"]
+            e6_idx = input_for_pred["e6_id"]
+            ms = input_for_pred["pres_bits"]
+            bs = input_for_pred["abs_bits"]
+
+
+
+
             e1 = ent_embed[e1_idx]* ms[:,0].view(-1, 1) + bs[:,0].view(-1, 1)
             e2 = ent_embed[e2_idx]* ms[:,1].view(-1, 1) + bs[:,1].view(-1, 1)
             e3 = ent_embed[e3_idx]* ms[:,2].view(-1, 1) + bs[:,2].view(-1, 1)
