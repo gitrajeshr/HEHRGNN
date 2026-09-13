@@ -39,7 +39,8 @@ if __name__ == "__main__":
     parser.add_argument('-hype_hidden_drop',type=float, default=0.2) 
 
     parser.add_argument('-optimizer', type=str, default="adam")
-    parser.add_argument('-loss',type=str, default="CEL")
+    parser.add_argument('-loss',type=str, default="BCEL") #BCEL is the default for LP
+    #and CE is the default for NC. We can also use BCE for NC but then we need to 
     parser.add_argument('-epochs', type=int,default=20)
     parser.add_argument('-batch_size', type=int, default=128)
     parser.add_argument('-learning_rate', type=float,default=0.001)    #tried 0.0001
