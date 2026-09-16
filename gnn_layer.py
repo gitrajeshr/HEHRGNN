@@ -17,7 +17,7 @@ class GNNLayer(MessagePassing):
       
         self.device= device
         self.use_bn = config.use_bn
-        self.edge_embed = config.edge_embed
+        self.use_edge_embed = config.use_edge_embed
         self.config = {}
         self.config['QUAL_TRANSFORM']  = 'mult' #'sub', 'corr','rotate', '
         self.config['QUALS_AGGREGATE']  = 'sum' #'mean'
@@ -44,7 +44,7 @@ class GNNLayer(MessagePassing):
         self.w_combine_ent_embed = Parameter(torch.tensor([0.33,0.33,0.33]))
         print(f"In weight w_nodes shape={self.w_nodes_to_edges.shape} w_edges shape={self.w_edges_to_nodes.shape}")
         #!!!For Testing Only. Remove it!!!!
-        if self.edge_embed==0: 
+        if self.use_edge_embed==0: 
             self.w_rel = get_param((in_channels, out_channels), 1)  
 
     
@@ -165,7 +165,7 @@ class GNNLayer(MessagePassing):
 
         #In case of hyper  edges, the relation embeddings have to be updated by propagation from the 
         # neighboring(or member nodes). Need to do it here or Some where else???
-        if self.edge_embed:        
+        if self.use_edge_embed:        
             updated_rel_embed = scatter(updated_edge_embed, edge_type,dim=0, dim_size=num_rels, reduce='mean')
         else:
             updated_rel_embed = torch.matmul(rel_embed, self.w_rel) # what transformation is to be applied??
@@ -319,7 +319,7 @@ class GNNLayer(MessagePassing):
          #when a hyperedge receives messsages from its member nodes and aggregates, may be 
          #we can include the relation embedding in the aggregation with some weightage/attention
         if msg_type==1:
-            print(f"Qual to hyperedge Msg type={msg_type}")
+            print(f"Qual to hyperedge Msg type={msg_type} qual_edge_embed={qual_edge_embed.shape} edge_index={edge_index.shape} x_j={x_j.shape} weight={weight.shape}")
             msg = self.combine_qual_node_with_qual_edge(x_j,qual_edge_embed) 
         elif msg_type==2: # from nodes to edge    
             #x[0] is ent_embed, x[1] is edge embed

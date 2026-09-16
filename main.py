@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser.add_argument('-emb_dim', type=int, default=100)
     parser.add_argument('-inductive', type=int, default=0)
     parser.add_argument('-shallow_embed', type=int, default=0)
-    parser.add_argument('-edge_embed', type=int, default=1)
+    parser.add_argument('-use_edge_embed', type=int, default=1)
     
     
     #GNN parameters
@@ -69,7 +69,7 @@ if __name__ == "__main__":
         config.max_q_pairs = 0
 
     dataset = InputDataManager(config)
-    print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nNum ents = {len(dataset.ent2id)} \n Num rels = {len(dataset.rel2id)} \n Num edges = {len(dataset.graph_representation['edge_index'])}")
+    print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nNum ents = {len(dataset.ent2id)} \n Num rels = {len(dataset.rel2id)} \n Num edges = {max(dataset.graph_representation['edge_index'][1])}")
 
     graph_encoder = GraphEncoder(dataset,config).to(config.device)
 
@@ -97,8 +97,8 @@ if __name__ == "__main__":
       
     
     # Final testing of the model - after training or loading a pre-trained model
-    #log_file_name = os.path.join(config.output_dir, f"{config.dataset}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_edgeEmb-{config.edge_embed}_shalEmb-{config.shallow_embed}_test_log.txt")  
-    log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_edgeEmb-{config.edge_embed}_shalEmb-{config.shallow_embed}_test_log.txt")
+    #log_file_name = os.path.join(config.output_dir, f"{config.dataset}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_use_edgeEmb-{config.use_edge_embed}_shalEmb-{config.shallow_embed}_test_log.txt")  
+    log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_use_edgeEmb-{config.use_edge_embed}_shalEmb-{config.shallow_embed}_test_log.txt")
 
     print(">>>>>>>>>Loaded Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
     for name, param in graph_encoder.named_parameters():

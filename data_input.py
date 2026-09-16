@@ -18,9 +18,7 @@ class InputDataManager():
         self.max_arity = args.max_arity
         self.max_q_pairs = args.max_q_pairs
 
-        # id zero means no entity. Entity ids start from 1.
-        self.ent2id = {"":0}
-        self.rel2id = {"":0}
+        
         # The unified data structure  for holding both types of complex facts - 
         # hyper-relational and n-ary
         #
@@ -29,10 +27,13 @@ class InputDataManager():
         # Now the dataset will consist of subsets "train", "valid" and "test"
         self.data = {}
         print("Loading the dataset {} ....".format(self.name))
+        # id zero means no entity. Entity ids start from 1.
+        self.ent2id = {} #{"":0}
+        self.rel2id = {} #{"":0}
         
         if self.name in ["cora", "citeseer", "pubmed"]:
             self.data["graph_data"], self.data["node_features"], self.data["labels"], self.data["train_mask"], self.data["test_mask"], self.data["val_mask"] = self.get_citation_dataset(self.name)
-        else:
+        else:       
             self.data["node_features"] = None
             self.data["train"] = self.read(os.path.join(self.dir, "train.txt"))
             self.data["graph_data"] = self.data["train"] #graph data is same as the training data in this case
@@ -58,7 +59,7 @@ class InputDataManager():
         self.num_relations = len(self.rel2id)
         self.num_tuples = len(self.data["graph_data"])
         #print(f"Enities2id= {self.ent2id} Rel2id={self.rel2id}")
-        print(f"Num tuples = {self.num_tuples}  NUm Entities={self.num_entities}  num_relations={self.num_relations}")
+        print(f"Num tuples = {self.num_tuples}  NUm Entities={self.num_entities}  num_relations={self.num_relations} relation types={self.rel2id.keys()}")
 
     def convert_to_graph_representation_for_msg_passing(self,data):
         primary_tuples=data[:,:self.max_arity]
@@ -161,7 +162,7 @@ class InputDataManager():
         #-- equal number of relns and entities for q pairs, max pairs to be max_q_pairs
         pr_tuple = tuple((line.partition("<<")[2].partition(">>")[0]).split(','))
         q_pairs =  tuple((line.partition(">>")[2]).split(','))
-        #print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
+        print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
         #!!!!Below line only for testing without qualifiers
         #!!!!q_pairs = tuple()
         pr_tuple_id = np.zeros(self.max_arity + 1)
@@ -173,13 +174,14 @@ class InputDataManager():
                 pr_tuple_id[ind] = self.get_ent_id(t)
         
         q_pairs_id = np.zeros(self.max_q_pairs * 2)
-        for ind,t in enumerate(q_pairs):
-            #print(f"enumerate {ind}<>{t}")
-            if ind < self.max_q_pairs * 2:
-                if ind % 2 == 0:
-                    q_pairs_id[ind] = self.get_rel_id(t)
-                else:
-                    q_pairs_id[ind] = self.get_ent_id(t)
+        if any(q_pairs):
+            for ind,t in enumerate(q_pairs):
+                #print(f"enumerate {ind}<>{t}")
+                if ind < self.max_q_pairs * 2:
+                    if ind % 2 == 0:
+                        q_pairs_id[ind] = self.get_rel_id(t)
+                    else:
+                        q_pairs_id[ind] = self.get_ent_id(t)
         
         #print(f">>>>>Tuple 2 Ids output pr_tuple_id {pr_tuple_id} \n qual_pairs_id = {q_pairs_id}")
 
@@ -196,6 +198,7 @@ class InputDataManager():
 
     def get_rel_id(self, rel):
         if not rel in self.rel2id:
+            print(f"Assigning id {len(self.rel2id)} to relation {rel}")
             self.rel2id[rel] = len(self.rel2id)
         return self.rel2id[rel]
 
