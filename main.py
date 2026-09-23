@@ -43,7 +43,9 @@ if __name__ == "__main__":
     #and CE is the default for NC. We can also use BCE for NC but then we need to 
     parser.add_argument('-epochs', type=int,default=20)
     parser.add_argument('-batch_size', type=int, default=128)
+    parser.add_argument('-eval_batch_size', type=int, default=128)
     parser.add_argument('-learning_rate', type=float,default=0.001)    #tried 0.0001
+
 
     parser.add_argument('-drop_prob', type=float,default=0.3)
     parser.add_argument('-use_bn', type=int, default=0)

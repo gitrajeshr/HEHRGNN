@@ -52,7 +52,7 @@ class EvaluatorClass():
         config = self.config
         dataset = self.dataset
         
-        dataloader = DataLoader(dataset.data[split],self.config.batch_size)
+        dataloader = DataLoader(dataset.data[split],self.config.eval_batch_size)
         iter_dataset = iter(dataloader)
         accumulated_metrics={}
         summary_metrics={}
@@ -68,6 +68,10 @@ class EvaluatorClass():
         with torch.no_grad():
             # Single GNN propagation over the whole graph; embeddings reused for every batch.
             ent_embed, rel_embed = model.graph_encoder(dataset.graph_representation, config.task)
+            print(f"ent_embed.is_cuda={ent_embed.is_cuda} rel_embed.is_cuda={rel_embed.is_cuda}")
+            # No-op if already on the target device (it should be); guards against a CPU-side embedding.
+            ent_embed = ent_embed.to(config.device)
+            rel_embed = rel_embed.to(config.device)
 
             for pos_batch in tqdm(iter_dataset):
                 batch_counter+=1
@@ -112,7 +116,7 @@ class EvaluatorClass():
         config = self.config
         dataset = self.dataset
         
-        # dataloader = DataLoader(dataset.data["test"],self.config.batch_size)
+        # dataloader = DataLoader(dataset.data["test"],self.config.eval_batch_size)
         # iter_dataset = iter(dataloader)
         accumulated_metrics={}
         summary_metrics={}

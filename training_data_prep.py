@@ -11,17 +11,9 @@ class TrainingDataPrep():
 
     def mark_arities(self,batch):
         arities = torch.count_nonzero(batch[:,1:self.config.max_arity+1], dim=1)
-        #print(f"Arities = {arities}")
-        np_pres_bits = np.zeros((len(batch),self.config.max_arity))
-        np_abs_bits = np.ones((len(batch),self.config.max_arity))
-        for i in range(len(batch)):
-            np_pres_bits[i][0:arities[i]] = 1
-            np_abs_bits[i][0:arities[i]] = 0
-
-        pres_bits = torch.from_numpy(np_pres_bits).int().to(self.config.device)
-
-        abs_bits = torch.from_numpy(np_abs_bits).int().to(self.config.device)
-
+        # position j is present iff j < arity of that row
+        pres_bits = (torch.arange(self.config.max_arity, device=batch.device).unsqueeze(0) < arities.unsqueeze(1)).int().to(self.config.device)
+        abs_bits = 1 - pres_bits
         return pres_bits,abs_bits
 
     def add_neg_samples(self, pos_batch,train_or_eval):
@@ -34,9 +26,22 @@ class TrainingDataPrep():
             neg_ratio = self.config.neg_ratio
 
 
-        pos_batch = torch.cat((pos_batch,torch.zeros(pos_batch.size(0),1)),1)
-        batch = np.concatenate([self.neg_each(np.repeat([c], neg_ratio * arities[i] + 1, axis=0), arities[i], neg_ratio,i) for i, c in enumerate(pos_batch.numpy())], axis=0)
-        batch = torch.from_numpy(batch).int().to(self.config.device)
+        device = self.config.device
+        pos_batch = pos_batch.to(device)
+        arities = arities.to(device)
+        # Each tuple i expands to a block of 1 + neg_ratio*arity_i rows: the positive first, then
+        # neg_ratio corrupted rows for each of its arity_i entity positions.
+        block_sizes = neg_ratio * arities + 1
+        row_to_tuple = torch.repeat_interleave(torch.arange(pos_batch.size(0), device=device), block_sizes)
+        block_starts = torch.cumsum(block_sizes, dim=0) - block_sizes
+        offset = torch.arange(row_to_tuple.numel(), device=device) - block_starts[row_to_tuple]
+
+        batch = torch.cat((pos_batch[row_to_tuple], (offset == 0).unsqueeze(1).to(pos_batch.dtype)), dim=1)
+        neg_rows = torch.nonzero(offset > 0).squeeze(1)
+        # offset 1..nr corrupts entity column 1, nr+1..2nr column 2, ...
+        neg_cols = (offset[neg_rows] - 1) // neg_ratio + 1
+        batch[neg_rows, neg_cols] = torch.randint(1, self.num_ent, (neg_rows.numel(),), device=device, dtype=batch.dtype)
+        batch = batch.int()
         if(torch.count_nonzero(batch[:,-1]) >512):
             print(f"$$$$$$$$$Hey the positive indices more than 512")
             label = batch[:,-1]
@@ -45,30 +50,19 @@ class TrainingDataPrep():
         return batch
     
 
-    def neg_each(self, arr, arity, nr,i):
-        arr[0,-1] = 1
-        for a in range(arity):
-            arr[a* nr + 1:(a + 1) * nr + 1, a + 1] = np.random.randint(low=1, high=self.num_ent, size=nr)
-        #print(f"@@@@n neg samples={arr}")
-        return arr
-    
     def pos_neg_set_predictions_in_row(self,labels, predictions):
         max_length = 1 + self.config.max_arity * self.config.neg_ratio
-        positive_indices = torch.nonzero(labels).squeeze()
-        pos_neg_set_size = torch.ones_like(positive_indices)
+        positive_indices = torch.nonzero(labels).flatten()
+        # each set runs from a positive up to the next positive (or the end of the batch)
+        ends = torch.cat((positive_indices[1:], positive_indices.new_tensor([predictions.size(0)])))
+        pos_neg_set_size = ends - positive_indices
         print(f"Labels = {labels.shape} Positive Indices {positive_indices.shape} predictions shape{predictions.shape}")
-        seq = []
-        for ind, val in enumerate(positive_indices):
-            if(ind == len(positive_indices)-1):
-                pos_neg_set = predictions[val:]
-                padded_pos_neg_set = self.padd(pos_neg_set, max_length)                 
-            else:
-                pos_neg_set = predictions[val:positive_indices[ind + 1]]
-                padded_pos_neg_set = self.padd(pos_neg_set, max_length)
-            pos_neg_set_size[ind] = pos_neg_set.size(0)
-            seq.append(padded_pos_neg_set)
-            #print(f"POs neg row = {pos_neg_set.shape} {pos_neg_set}")
-        pos_neg_predictions = torch.stack(seq)
+        set_id = torch.repeat_interleave(torch.arange(positive_indices.numel(), device=predictions.device), pos_neg_set_size)
+        col = torch.arange(predictions.size(0), device=predictions.device) - positive_indices[set_id]
+        # pad short sets with -inf; sets longer than max_length are cut, as F.pad did
+        keep = col < max_length
+        pos_neg_predictions = torch.full((positive_indices.numel(), max_length), -math.inf, dtype=predictions.dtype, device=predictions.device)
+        pos_neg_predictions[set_id[keep], col[keep]] = predictions[keep]
         targets = torch.zeros_like(pos_neg_predictions)
         targets[:,0] = 1
         return pos_neg_predictions, targets,pos_neg_set_size
