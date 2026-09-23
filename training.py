@@ -106,7 +106,7 @@ class Training():
         else:
             ind_trans= "transductive"
 
-        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_use_edgeEmb-{config.use_edge_embed}_shalEmb-{config.shallow_embed}_training_log.txt")
+        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_use_edgeEmb-{config.use_edge_embed}_shalEmb-{config.shallow_embed}_drop_prob-{config.drop_prob}_training_log.txt")
 
         #log_file = open(log_file_name, "w")
         opt = self.optimizer

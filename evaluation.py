@@ -86,7 +86,7 @@ class EvaluatorClass():
                 input_for_pred["e6_id"] = ent6
                 input_for_pred["pres_bits"] = pres_bits
                 input_for_pred["abs_bits"] = abs_bits
-             
+             ##!!!!!!!No need of GNN propagation for all the samples/batches in evaluation. We can do a single GNN propagation for the entire graph and get the embeddings for all the entities and relations. Then we can use these embeddings to compute the scores for the positive and negative samples in the evaluation batches. This will save a lot of computation time and memory. We can store the entity and relation embeddings as buffers in the model and update them only when we train the model. During evaluation, we can just use these embeddings without any GNN propagation.
                 predictions = model(dataset.graph_representation,self.config.task,input_for_pred)
                 print(f">>>>>>>predictions ={predictions.shape} total batch size={batch.shape}")
 
