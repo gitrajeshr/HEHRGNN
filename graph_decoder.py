@@ -81,15 +81,15 @@ class HypEDecoder(torch.nn.Module):
 
     def forward(self, ent_embed, rel_embed, input_for_pred):
         #print(f"####forward propagation{r_idx.shape}....{e1_idx.shape}")
-        r_idx = input_for_pred.r_idx
-        e1_idx = input_for_pred.e1_idx
-        e2_idx = input_for_pred.e2_idx
-        e3_idx = input_for_pred.e3_idx
-        e4_idx = input_for_pred.e4_idx
-        e5_idx = input_for_pred.e5_idx
-        e6_idx = input_for_pred.e6_idx
-        ms = input_for_pred.ms
-        bs = input_for_pred.bs
+        r_idx = input_for_pred["r_id"]
+        e1_idx = input_for_pred["e1_id"]
+        e2_idx = input_for_pred["e2_id"]
+        e3_idx = input_for_pred["e3_id"]
+        e4_idx = input_for_pred["e4_id"]
+        e5_idx = input_for_pred["e5_id"]
+        e6_idx = input_for_pred["e6_id"]
+        ms = input_for_pred["pres_bits"]
+        bs = input_for_pred["abs_bits"]
 
 
         r = rel_embed[r_idx]
@@ -176,3 +176,20 @@ class DistMultDecoder(torch.nn.Module):
             #score = torch.sigmoid(sim_score)
             score = torch.sum(pred, dim=1)
             return score
+
+
+
+class GraphDecoder(torch.nn.Module):
+    def __init__(self,dataset,config):
+        super().__init__()
+        self.decoder_type = config.decoder.lower()
+        if self.decoder_type == "hype":
+            self.decoder = HypEDecoder(dataset,config)
+        elif self.decoder_type == "distmult":
+            self.decoder = DistMultDecoder(dataset,config)
+        else:
+            print(f"Invalid decoder type {self.decoder_type}")
+            exit(1)
+
+    def forward(self, ent_embed, rel_embed,input_for_pred):
+        return self.decoder(ent_embed, rel_embed,input_for_pred)

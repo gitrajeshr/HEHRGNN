@@ -3,7 +3,6 @@ from utils import get_param
 from torch.nn.init import xavier_normal_,xavier_uniform_
 
 from gnn_layer import GNNLayer
-from graph_decoder import DistMultDecoder,HypEDecoder
 
 #This is the encoder that generates embeddings for the nodes/edges in the input graph. 
 # This in turn calls the gnn_layer. for message propagation among the nodes/edges for graph convolution.
@@ -101,13 +100,6 @@ class GraphEncoder(torch.nn.Module):
 
         
 
-        #Decoders
-        match config.decoder:
-            case "distmult":
-                self.decoder = DistMultDecoder(dataset,config)
-            case "hype": 
-                self.decoder = HypEDecoder(dataset,config)
-        
         #self.bias = get_param((self.num_ent), 0)
 
     def load_model(self,saved_model):
@@ -120,8 +112,8 @@ class GraphEncoder(torch.nn.Module):
             print(f"Free GPU memory: {free_memory_bytes / (1024**2):.2f} MB")
             print(f"Total GPU memory: {total_memory_bytes / (1024**2):.2f} MB")
    
-    def forward(self,graph_data,task,input_for_pred):
-        #input_for_pred contains (rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits)      
+    def forward(self,graph_data,task):
+        #Returns the entity and relation embeddings; scoring is done by the decoder.
         #Should we make ent_embed and rel_embed as registered buffers so that they are 
         #also saved as part of the model, but are not optimized with grad descent
        #The init_ent_embed is getting optimized over the iterations
@@ -154,14 +146,7 @@ class GraphEncoder(torch.nn.Module):
             ent_embed = self.init_ent_embed
             rel_embed = self.init_rel_embed
 
-        if task == "link_prediction":
-            score = self.decoder(ent_embed, rel_embed,input_for_pred)
-            #score = self.dm_decoder(ent_embed, rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,ent6_idx,pres_bits,abs_bits)
-            #score = self.hype_decoder(ent_embed,rel_embed,rel_idx,ent1_idx,ent2_idx,ent3_idx,ent4_idx,ent5_idx,pres_bits,abs_bits)
-        else:
-            score = ent_embed
-           
-        return score
+        return ent_embed, rel_embed
 
     
 

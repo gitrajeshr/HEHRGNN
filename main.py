@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 
-from graph_encoder import GraphEncoder
+from hehrgnn_model import hehrgnn_model
 from data_input import InputDataManager
 from training import Training
 from evaluation import EvaluatorClass
@@ -15,8 +15,8 @@ if __name__ == "__main__":
     parser.add_argument('-model', type=str, default="HEHR")
 
     parser.add_argument('-dataset', type=str, default="wd50k_unified_format")
-    parser.add_argument('-max_arity', type=str, default=30) 
-    parser.add_argument('-max_q_pairs', type=str, default=20) 
+    parser.add_argument('-max_arity', type=int, default=30) 
+    parser.add_argument('-max_q_pairs', type=int, default=20) 
     #wd50k dataset was found to have max_qpairs of 20  
 
     parser.add_argument('-neg_ratio', type=int, default=10)
@@ -71,11 +71,11 @@ if __name__ == "__main__":
     dataset = InputDataManager(config)
     print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nNum ents = {len(dataset.ent2id)} \n Num rels = {len(dataset.rel2id)} \n Num edges = {max(dataset.graph_representation['edge_index'][1])}")
 
-    graph_encoder = GraphEncoder(dataset,config).to(config.device)
+    model = hehrgnn_model(config,dataset).to(config.device)
 
     if config.load_model !="":
         saved_model = os.path.join(config.output_dir, config.load_model)
-        graph_encoder.load_model(saved_model)
+        model.load_model(saved_model)
 
     #Now we have the embeddings for entities as well as relations. How do we evaluate?
     #The encoder decoder should be part of the GraphEncoder in order to optimize
@@ -85,13 +85,13 @@ if __name__ == "__main__":
     #for GraphEncoder, does it use a default one? Even for GNNlayer?
     #Where do we put the optimizer, it should be 
     #we cal it loss_layer because , the loss fn is implemented as a layer in torch.nn
-    print(">>>>>>>>>Graph Encoder Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
-    for name, param in graph_encoder.named_parameters():
+    print(">>>>>>>>>Model params: ",sum([param.nelement() for param in model.parameters()]))
+    for name, param in model.named_parameters():
         if param.requires_grad:
             print(f"name={name}, param.data = {param.shape}")
 
     if (config.run_mode=="train"):
-        trainer = Training(graph_encoder,config)        
+        trainer = Training(model,config)        
         trainer.training_loop(dataset)
     
       
@@ -100,13 +100,13 @@ if __name__ == "__main__":
     #log_file_name = os.path.join(config.output_dir, f"{config.dataset}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_use_edgeEmb-{config.use_edge_embed}_shalEmb-{config.shallow_embed}_test_log.txt")  
     log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_use_edgeEmb-{config.use_edge_embed}_shalEmb-{config.shallow_embed}_test_log.txt")
 
-    print(">>>>>>>>>Loaded Model params: ",sum([param.nelement() for param in graph_encoder.parameters()]))
-    for name, param in graph_encoder.named_parameters():
+    print(">>>>>>>>>Loaded Model params: ",sum([param.nelement() for param in model.parameters()]))
+    for name, param in model.named_parameters():
         if param.requires_grad:
             print(f"name={name}, param.data = {param.shape}")
 
    
-    evaluator = EvaluatorClass(graph_encoder,dataset,config)
+    evaluator = EvaluatorClass(model,dataset,config)
 
 
     log_file = open(log_file_name, "a")

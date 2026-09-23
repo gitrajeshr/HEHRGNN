@@ -10,7 +10,7 @@ from datetime import datetime
 
 class Training():
     def __init__(self,model,config):
-        self.model= model
+        self.model = model
         self.config = config
         self.loss_layer, self.optimizer = self.set_loss_n_optimizer()
         self.best_model = None
@@ -198,7 +198,7 @@ class Training():
         # training_nodes_mask = dataset.data["nodes"]
         # #print(f">>>>>>>>original dataset = {train_data}")
         # dataloader = DataLoader(train_data,config.batch_size)  
-        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_edgeEmb-{config.edge_embed}_shalEmb-{config.shallow_embed}_training_log.txt")
+        log_file_name = os.path.join("results",f"{(datetime.now()).strftime('%Y%m%d_%H%M%S')}_{dataset.name}_{config.decoder}_{config.loss}_embdim-{config.emb_dim}_epochs-{config.epochs}_numgnn-{config.num_gnn_layers}_BN-{config.use_bn}_induct-{config.inductive}_edgeEmb-{config.use_edge_embed}_shalEmb-{config.shallow_embed}_training_log.txt")
         opt = self.optimizer
         train_loss = []
         best_metrics={}
