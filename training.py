@@ -184,7 +184,7 @@ class Training():
                 ##!!!We cannot directly use the embeddings generated during the last training
                 # iteration and instead need to do a fresh forward pass for evaluation because 
                 # the weights have been updated in the last training iteration 
-                metrics = evaluator.evaluate(split="test")
+                metrics = evaluator.evaluate(split="valid")
                 log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
                 self.save_if_best_model(model,config,metrics,best_metrics,epch,log_file_name)
                 log_file.close()

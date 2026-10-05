@@ -10,15 +10,17 @@ class TrainingDataPrep():
         self.num_ent = dataset.num_entities
 
     def mark_arities(self,batch):
-        arities = torch.count_nonzero(batch[:,1:self.config.max_arity+1], dim=1)
+        #arities = torch.count_nonzero(batch[:,1:self.config.max_arity+1], dim=1)
+        arities = (batch[:, 1:self.config.max_arity + 1] >= 0).sum(dim=1)
         # position j is present iff j < arity of that row
         pres_bits = (torch.arange(self.config.max_arity, device=batch.device).unsqueeze(0) < arities.unsqueeze(1)).int().to(self.config.device)
         abs_bits = 1 - pres_bits
         return pres_bits,abs_bits
 
     def add_neg_samples(self, pos_batch,train_or_eval):
-        arities = torch.count_nonzero(pos_batch[:,1:self.config.max_arity+1], dim=1)
-        
+        #arities = torch.count_nonzero(pos_batch[:,1:self.config.max_arity+1], dim=1)
+        arities = (pos_batch[:, 1:self.config.max_arity + 1] >= 0).sum(dim=1)
+
         if train_or_eval == 1: #1 is eval, 0 is train
             neg_ratio = self.num_ent // 100
             #neg_ratio = self.num_ent

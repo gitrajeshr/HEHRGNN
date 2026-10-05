@@ -84,22 +84,22 @@ class InputDataManager():
         # Add actual data
         for i, pr_tuple in enumerate(primary_tuples):
             np_hyperedge_type.append(pr_tuple[0])
-            #Need to loop only till the entity is 0 or if we know th arity value, use that
+            #Need to loop only till the entity is -1 or if we know th arity value, use that
             for j,ent in enumerate(pr_tuple[1:]):
-                if ent == 0:
+                if ent < 0:
                     break
                 np_hyperedge_index[0].append(ent)
                 np_hyperedge_index[1].append(i)
 
             qual_rel = np.array(qual_pairs[i][::2])
             qual_ent = np.array(qual_pairs[i][1::2])
-            non_zero_rels = qual_rel[np.nonzero(qual_rel)]
-            non_zero_ents = qual_ent[np.nonzero(qual_ent)]
-            if len(non_zero_ents) > 0:
-                #print(f"tuple {i}: qual_rel= {qual_rel} qual_ent={qual_ent} non_zero_rels={non_zero_rels} non_zero_ents={non_zero_ents}")
-                for j in range(non_zero_ents.shape[0]):
-                    qualifier_rel.append(non_zero_rels[j])
-                    qualifier_ent.append(non_zero_ents[j])
+            valid_qual_rels = qual_rel[qual_rel>=0]
+            valid_qual_ents = qual_ent[qual_ent>=0]
+            #print(f"tuple {i}: primary ={pr_tuple} qual_rel= {valid_qual_rels} qual_ent={valid_qual_ents}")
+            if len(valid_qual_ents) > 0:
+                for j in range(valid_qual_ents.shape[0]):
+                    qualifier_rel.append(valid_qual_rels[j])
+                    qualifier_ent.append(valid_qual_ents[j])
                     qualifier_edge.append(i)
 
         np_qual_details = np.stack((qualifier_rel, qualifier_ent, qualifier_edge), axis=0)
@@ -138,7 +138,8 @@ class InputDataManager():
             data = {"primary_tuples":primary_tuples, "qual_pairs":qual_pairs} """
             statements = []
             np.random.shuffle(lines)
-            for i, line in enumerate(lines):                
+            for i, line in enumerate(lines):  
+                           
                 pr_tuple_id, q_pairs_id = self.tuple2ids(i,line)
                 stmt = np.concatenate((pr_tuple_id,q_pairs_id),axis=0)
                 statements.append(stmt)
@@ -165,7 +166,7 @@ class InputDataManager():
         #print(f"Partitioned string pr_tuple= {pr_tuple} q_pairs={q_pairs} ")
         #!!!!Below line only for testing without qualifiers
         #!!!!q_pairs = tuple()
-        pr_tuple_id = np.zeros(self.max_arity + 1)
+        pr_tuple_id = np.full(self.max_arity + 1, -1, dtype=np.int32)
         for ind,t in enumerate(pr_tuple):
             #print(f"enumerate {ind}<>{t}")
             if ind < self.max_arity + 1:
@@ -174,7 +175,7 @@ class InputDataManager():
                 else:
                     pr_tuple_id[ind] = self.get_ent_id(t)
         
-        q_pairs_id = np.zeros(self.max_q_pairs * 2)
+        q_pairs_id = np.full(self.max_q_pairs * 2, -1, dtype=np.int32)
         if any(q_pairs):
             for ind,t in enumerate(q_pairs):
                 #print(f"enumerate {ind}<>{t}")
@@ -207,40 +208,81 @@ class InputDataManager():
 
         max_arity = 1
 
-        num_hyperedges = data.x.shape[0]
+        num_nodes = data.x.shape[0] # This is the number of entities in the graph 
         #num_hyperedges = 10
+        
+        rel_id = self.get_rel_id("dafault_edge")
 
         for n in range(data.x.shape[0]):
             #print(f"Node {n} features {data.x[n]}")
             self.get_ent_id(torch.tensor(n))
-        for n in range(num_hyperedges):
-            i=1
-            for e in data.edge_index.t():
-                #print(f"Edge {e} from node {e[0]} to node {e[1]}")
-                if e[0] == n or e[1] == n:
-                    i+=1
-            #print(f"counting Hyperedge Arity with Node {n} as the Centre current arity={i} max arity={max_arity}")
-            max_arity = max(max_arity, i)
+        # for n in range(num_hyperedges):
+        #     i=1
+        #     for e in data.edge_index.t():
+        #         print(f"Edge {e} from node {e[0]} to node {e[1]}")
+        #         if e[0] == n or e[1] == n:
+        #             i+=1
+        #     print(f"counting Hyperedge Arity with Node {n} as the Centre current arity={i} max arity={max_arity}")
+        #     max_arity = max(max_arity, i)
 
-        print(f"Max arity in the graph is {max_arity}")
+        src, dst = data.edge_index
+
+        # number of edges touching each node
+        deg = torch.bincount(src, minlength=num_nodes) + torch.bincount(dst, minlength=num_nodes)
+
+        # your `or` condition counts a self-loop only once, so undo the double count
+        loops = src == dst
+        deg -= torch.bincount(src[loops], minlength=num_nodes)
+
+        arity = deg + 1                      # your i starts at 1
+        max_arity = max(max_arity, arity.max().item())
+
+        print(f"Max arity in the graph is {max_arity} Degrees of nodes = {deg} Arity of nodes = {arity}")
+    
+
         hypergraph_statements = []
         self.max_arity = max_arity
-        for n in range(num_hyperedges):
-            #print(f"Creating Hyperedge with Node {n} as the Centre max arity={self.max_arity} max_q_pairs={self.max_q_pairs}")
-            hyper_stmt = np.zeros(self.max_arity + 1)
-            i=0
-            hyper_stmt[i]= 0
-            hyper_stmt[1] = n
-            i+=2
-            for e in data.edge_index.t():
-                #print(f"Edge {e} from node {e[0]} to node {e[1]}")
-                if e[0] == n:
-                    hyper_stmt[i] = self.get_ent_id(e[1])
-                    i+=1
-                elif e[1] == n:
-                    hyper_stmt[i] = self.get_ent_id(e[0])
-                    i+=1
+        num_hyperedges = num_nodes
+
+        # one pass over the edges: neighbours[n] lists n's neighbours in edge order
+        # (same order and duplicates as your inner loop; a self-loop adds n once)
+        neighbours = [[] for _ in range(num_hyperedges)]
+        for s, d in zip(*data.edge_index.tolist()):
+            neighbours[s].append(d)
+            if s != d:
+                neighbours[d].append(s)
+
+        for n in range(num_hyperedges):  # one hyperedge per node, with that node as the centre
+            hyper_stmt = np.full(self.max_arity + 1, -1, dtype=np.int32)
+            i = 0
+            hyper_stmt[i] = rel_id
+            i += 1
+            hyper_stmt[i] = self.get_ent_id(torch.tensor(n))
+
+            i += 1
+            for nb in neighbours[n]:
+                hyper_stmt[i] = self.get_ent_id(torch.tensor(nb))
+
+                i += 1
             hypergraph_statements.append(hyper_stmt)
+
+        # for n in range(num_hyperedges): # we construct one hyperedge for each node in the graph, with that node as the centre of the hyperedge
+        #     #print(f"Creating Hyperedge with Node {n} as the Centre max arity={self.max_arity} max_q_pairs={self.max_q_pairs}")
+        #     hyper_stmt = np.zeros(self.max_arity + 1)
+        #     i=0
+        #     hyper_stmt[i]= rel_id
+        #     i+=1
+        #     hyper_stmt[i] = self.get_ent_id(torch.tensor(n))
+        #     i+=1
+        #     for e in data.edge_index.t():
+        #         print(f"Edge {e} from node {e[0]} to node {e[1]}")
+        #         if e[0] == n:
+        #             hyper_stmt[i] = self.get_ent_id(e[1])
+        #             i+=1
+        #         elif e[1] == n:
+        #             hyper_stmt[i] = self.get_ent_id(e[0])
+        #             i+=1
+        #     hypergraph_statements.append(hyper_stmt)
 
         return np.array(hypergraph_statements, dtype=np.int64)
 
@@ -266,9 +308,8 @@ class InputDataManager():
        
         #np.random.shuffle(data.edge_index)
         
-        pr_tuple_id = np.zeros(self.max_arity + 1)
+        pr_tuple_id = np.full(self.max_arity + 1, -1, dtype=np.int32)
     
-        self.get_rel_id("dafault_edge")
 
         # for i in range(data.edge_index.size(1)):  
         #     pr_tuple_id[0] = 1  # Assuming a single relation type for Cora
