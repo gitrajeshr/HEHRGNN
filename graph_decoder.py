@@ -20,7 +20,7 @@ class HypEDecoder(torch.nn.Module):
         self.emb_dim = config.emb_dim
         self.max_arity = config.max_arity
         rel_emb_dim = self.emb_dim
-        print(f"Num entities={dataset.num_entities} Num rels={dataset.num_relations}")
+        print(f"Graph Decoder Num entities={dataset.num_entities} Num rels={dataset.num_relations}")
         #self.E = torch.nn.Embedding(d.num_ent(), emb_dim, padding_idx=0)
         #self.R = torch.nn.Embedding(d.num_rel(), rel_emb_dim, padding_idx=0)
 

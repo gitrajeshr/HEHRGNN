@@ -1,4 +1,5 @@
 import os
+import json
 import random
 import numpy as np
 import torch
@@ -10,7 +11,7 @@ from torch_geometric.datasets import Planetoid
 
 
 class InputDataManager():
-    def __init__(self,args):
+    def __init__(self,args,ent2id=None,rel2id=None):
         self.name = args.dataset
         self.dir = os.path.join("data", self.name)
         self.device = args.device
@@ -18,8 +19,8 @@ class InputDataManager():
         self.max_arity = args.max_arity
         self.max_q_pairs = args.max_q_pairs
 
-        
-        # The unified data structure  for holding both types of complex facts - 
+
+        # The unified data structure  for holding both types of complex facts -
         # hyper-relational and n-ary
         #
         # Each fact will be of the form {"PT":[r, e1,....en], "QP":[[qr1,qe1],[qr2,qe2]....[qrm, qem]]}
@@ -28,9 +29,15 @@ class InputDataManager():
         self.data = {}
         print("Loading the dataset {} ....".format(self.name))
         # id zero means no entity. Entity ids start from 1.
-        self.ent2id = {} #{"":0}
-        self.rel2id = {} #{"":0}
-        
+        # If ent2id/rel2id are supplied (e.g. restored from a checkpoint's sidecar
+        # id-map file), we REUSE them verbatim instead of building a fresh mapping.
+        # This keeps embedding-row <-> entity/relation alignment stable across
+        # process runs, which otherwise drifts because `read()` shuffles lines with
+        # no fixed seed before ids are first assigned (see get_ent_id/get_rel_id).
+        self.fixed_vocab = ent2id is not None
+        self.ent2id = dict(ent2id) if ent2id is not None else {} #{"":0}
+        self.rel2id = dict(rel2id) if rel2id is not None else {} #{"":0}
+
         if self.name in ["cora", "citeseer", "pubmed"]:
             self.data["graph_data"], self.data["node_features"], self.data["labels"], self.data["train_mask"], self.data["test_mask"], self.data["val_mask"] = self.get_citation_dataset(self.name)
         else:       
@@ -59,7 +66,7 @@ class InputDataManager():
         self.num_relations = len(self.rel2id)
         self.num_tuples = len(self.data["graph_data"])
         #print(f"Enities2id= {self.ent2id} Rel2id={self.rel2id}")
-        print(f"Num tuples = {self.num_tuples}  NUm Entities={self.num_entities}  num_relations={self.num_relations} relation types={self.rel2id.keys()}")
+        print(f"From Data Input Num tuples = {self.num_tuples}  NUm Entities={self.num_entities}  num_relations={self.num_relations} relation types={self.rel2id.keys()}")
 
     def convert_to_graph_representation_for_msg_passing(self,data):
         primary_tuples=data[:,:self.max_arity]
@@ -192,17 +199,61 @@ class InputDataManager():
     def get_ent_id(self, ent):
         #print(f"Getting ent id for {ent}")
         if not isinstance(ent, str):
-            ent = str(ent.item()) 
+            ent = str(ent.item())
         if not ent in self.ent2id:
-            self.ent2id[ent] = len(self.ent2id) 
+            if self.fixed_vocab:
+                # We were handed a checkpoint's vocabulary and this entity isn't in
+                # it -- the dataset on disk no longer matches what the checkpoint
+                # was trained on. Silently appending here would misalign embedding
+                # rows again, so fail loudly instead.
+                raise KeyError(
+                    f"Entity '{ent}' is not present in the loaded id map "
+                    f"(size={len(self.ent2id)}). The dataset files have likely "
+                    f"changed since the checkpoint was trained."
+                )
+            self.ent2id[ent] = len(self.ent2id)
             #print(f"Assigned id {self.ent2id[ent]} to entity {ent}")
         return self.ent2id[ent]
 
     def get_rel_id(self, rel):
         if not rel in self.rel2id:
+            if self.fixed_vocab:
+                raise KeyError(
+                    f"Relation '{rel}' is not present in the loaded id map "
+                    f"(size={len(self.rel2id)}). The dataset files have likely "
+                    f"changed since the checkpoint was trained."
+                )
             #print(f"Assigning id {len(self.rel2id)} to relation {rel}")
             self.rel2id[rel] = len(self.rel2id)
         return self.rel2id[rel]
+
+    @staticmethod
+    def id_map_path(model_path):
+        """Sidecar file carrying the ent2id/rel2id used by a given .chkpnt file."""
+        base, _ = os.path.splitext(model_path)
+        return base + ".idmap.json"
+
+    def save_id_maps(self, model_path):
+        """Persist this run's ent2id/rel2id next to a checkpoint saved at model_path."""
+        path = self.id_map_path(model_path)
+        with open(path, "w") as f:
+            json.dump({"ent2id": self.ent2id, "rel2id": self.rel2id}, f)
+        print(f"Saved id maps ({len(self.ent2id)} entities, {len(self.rel2id)} relations) to {path}")
+
+    @staticmethod
+    def load_id_maps(model_path):
+        """Load the ent2id/rel2id sidecar for a checkpoint saved at model_path.
+
+        Returns (None, None) if no sidecar exists, so callers can fall back to
+        rebuilding a fresh (shuffled) vocabulary with a clear warning instead of
+        failing outright on old checkpoints saved before this sidecar existed.
+        """
+        path = InputDataManager.id_map_path(model_path)
+        if not os.path.exists(path):
+            return None, None
+        with open(path, "r") as f:
+            maps = json.load(f)
+        return maps["ent2id"], maps["rel2id"]
 
     def convert_to_hypergraph(self,data):
 

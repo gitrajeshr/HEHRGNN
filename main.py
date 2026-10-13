@@ -70,13 +70,27 @@ if __name__ == "__main__":
         config.max_arity = 2
         config.max_q_pairs = 0
 
-    dataset = InputDataManager(config)
-    print(f"Dataset loaded ...{dir(dataset)}...\ncontains {dataset.graph_representation.keys()} .....\nNum ents = {len(dataset.ent2id)} \n Num rels = {len(dataset.rel2id)} \n Num edges = {max(dataset.graph_representation['edge_index'][1])}")
+    # If we're loading a checkpoint, restore the EXACT ent2id/rel2id it was trained
+    # with before the dataset is built. Without this, InputDataManager.read()
+    # shuffles the statement files with no fixed seed, so ids get assigned in a
+    # different order on every process run -- the checkpoint's embedding rows
+    # would then be silently reinterpreted as the wrong entities/relations.
+    saved_model = ""
+    ent2id, rel2id = None, None
+    if config.load_model != "":
+        saved_model = os.path.join(config.output_dir, config.load_model)
+        ent2id, rel2id = InputDataManager.load_id_maps(saved_model)
+        if ent2id is None:
+            print(f"WARNING: no id-map sidecar found for {saved_model}. Rebuilding the "
+                  f"vocabulary from a freshly-shuffled dataset read -- entity/relation "
+                  f"ids may NOT match the checkpoint's embedding rows.")
+
+    dataset = InputDataManager(config, ent2id=ent2id, rel2id=rel2id)
+    print(f"Main Dataset loaded ...contains {dataset.graph_representation.keys()} .....\nNum ents = {len(dataset.ent2id)} \n Num rels = {len(dataset.rel2id)} \n Num edges = {max(dataset.graph_representation['edge_index'][1])+1}")
 
     model = hehrgnn_model(config,dataset).to(config.device)
 
     if config.load_model !="":
-        saved_model = os.path.join(config.output_dir, config.load_model)
         model.load_model(saved_model)
 
     #Now we have the embeddings for entities as well as relations. How do we evaluate?

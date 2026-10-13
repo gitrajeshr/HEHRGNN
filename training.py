@@ -42,7 +42,7 @@ class Training():
         return loss_layer, optimizer
    
 
-    def save_if_best_model(self,model,config,metrics,best_metrics, epch,log_filename):
+    def save_if_best_model(self,model,config,dataset,metrics,best_metrics, epch,log_filename):
         
             # This is the best model we have so far if
             # no "best_model" exists yes, or if this MRR is better than what we had before
@@ -67,17 +67,24 @@ class Training():
             # Save the model at checkpoint
             model_details_str = log_filename.rsplit("/", 1)[-1][:-len("_training_log.txt")]
             if is_best_model:
-                saved_model_name = model_details_str+'_best_model.chkpnt' 
-                torch.save(model.state_dict(), os.path.join(self.config.output_dir, saved_model_name))
+                saved_model_name = model_details_str+'_best_model.chkpnt'
+                saved_model_path = os.path.join(self.config.output_dir, saved_model_name)
+                torch.save(model.state_dict(), saved_model_path)
+                # Persist the exact ent2id/rel2id this run used, so a later
+                # `-load_model` run can reuse it instead of rebuilding a fresh
+                # (randomly shuffled) vocabulary that would misalign embedding rows.
+                dataset.save_id_maps(saved_model_path)
                 self.saved_best_model = saved_model_name
 
                 print(f"######## Saving the BEST MODEL in path {saved_model_name}")
             if (epch % 10 == 0):
                 saved_model_name = model_details_str+'_epch_{}_model.chkpnt'.format(epch)
-                opt_name = model_details_str +'_epch_{}_opt.chkpnt'.format(epch) 
+                opt_name = model_details_str +'_epch_{}_opt.chkpnt'.format(epch)
                 print("######## Saving the model {}".format(saved_model_name))
 
-                torch.save(self.model.state_dict(), os.path.join(self.config.output_dir, saved_model_name))
+                saved_model_path = os.path.join(self.config.output_dir, saved_model_name)
+                torch.save(self.model.state_dict(), saved_model_path)
+                dataset.save_id_maps(saved_model_path)
                 torch.save(self.optimizer.state_dict(), os.path.join(self.config.output_dir, opt_name))
      
     
@@ -186,7 +193,7 @@ class Training():
                 # the weights have been updated in the last training iteration 
                 metrics = evaluator.evaluate(split="valid")
                 log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
-                self.save_if_best_model(model,config,metrics,best_metrics,epch,log_file_name)
+                self.save_if_best_model(model,config,dataset,metrics,best_metrics,epch,log_file_name)
                 log_file.close()
 
     def node_classification_training_loop(self,dataset):
@@ -242,7 +249,7 @@ class Training():
                 # model.eval() # both these setting are done in Eval. No need to do it here
                 metrics = evaluator.evaluate(split="val")
                 log_file.write(f"EPoch {epch} Evaluation Metrics {metrics} \n")
-                self.save_if_best_model(model,config,metrics,best_metrics,epch,log_file_name)
+                self.save_if_best_model(model,config,dataset,metrics,best_metrics,epch,log_file_name)
             log_file.close()
         #load best chkpnt and do final evaluation on test set
         #final test evaluation with the best model
