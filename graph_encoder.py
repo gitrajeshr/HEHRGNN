@@ -79,8 +79,9 @@ class GraphEncoder(torch.nn.Module):
             self.relu1 = torch.nn.ReLU()
             #Instead of having multiple layers defined here, can we have a single layer
             #with multiple propagations? But then we'll have only a single set of weights? Is that ok?
-            self.gnn_layer2 = GNNLayer(self.emb_dims[1], self.emb_dims[2],self.device,self.config)
-            if self.gnn_layer2: self.gnn_layer2.to(self.device)
+            if(self.num_gnn_layers > 1):
+                self.gnn_layer2 = GNNLayer(self.emb_dims[1], self.emb_dims[2],self.device,self.config)
+                if self.gnn_layer2: self.gnn_layer2.to(self.device)
 
             if(self.num_gnn_layers > 2):
                 self.gnn_layer3 = GNNLayer(self.emb_dims[2], self.emb_dims[3],self.device,self.config)
@@ -129,7 +130,8 @@ class GraphEncoder(torch.nn.Module):
             ent_embed = self.hidden_drop1(ent_embed)
             rel_embed = self.hidden_drop1(rel_embed)
 
-            ent_embed, rel_embed = self.gnn_layer2(ent_embed,rel_embed,graph_data)
+            if(self.num_gnn_layers > 1):
+                ent_embed, rel_embed = self.gnn_layer2(ent_embed,rel_embed,graph_data)
             #Should the Dropout be moved inside the if condition for num_gnn_layers? 
             # f num_gnn_layers is 1, then we should not have the hidden_drop2 layer in use. Hence it should be inside the if condition for num_gnn_layers>1
             if(self.num_gnn_layers > 2):

@@ -79,7 +79,8 @@ if __name__ == "__main__":
     ent2id, rel2id = None, None
     if config.load_model != "":
         saved_model = os.path.join(config.output_dir, config.load_model)
-        ent2id, rel2id = InputDataManager.load_id_maps(saved_model)
+        if config.inductive!=1:
+            ent2id, rel2id = InputDataManager.load_id_maps(saved_model)
         if ent2id is None:
             print(f"WARNING: no id-map sidecar found for {saved_model}. Rebuilding the "
                   f"vocabulary from a freshly-shuffled dataset read -- entity/relation "
